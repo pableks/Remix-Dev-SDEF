@@ -1,26 +1,24 @@
 import * as React from "react"
 import {
-  ArrowUpCircleIcon,
-  BarChartIcon,
-  CameraIcon,
-  ClipboardListIcon,
-  DatabaseIcon,
-  FileCodeIcon,
-  FileIcon,
-  FileTextIcon,
-  FolderIcon,
-  HelpCircleIcon,
-  LayoutDashboardIcon,
-  ListIcon,
+  MapIcon,
+  LayersIcon,
+  NavigationIcon,
+  SatelliteIcon,
+  MountainIcon,
+  CompassIcon,
+  BookmarkIcon,
+  MapPinIcon,
+  RouteIcon,
   SearchIcon,
   SettingsIcon,
-  UsersIcon,
+  HelpCircleIcon,
 } from "lucide-react"
 
 import { NavDocuments } from "~/components/nav-documents"
 import { NavMain } from "~/components/nav-main"
 import { NavSecondary } from "~/components/nav-secondary"
 import { NavUser } from "~/components/nav-user"
+import { ModeToggle } from "~/components/mode-toggle"
 import {
   Sidebar,
   SidebarContent,
@@ -33,80 +31,80 @@ import {
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "Explorer",
+    email: "explorer@geoapp.com",
+    avatar: "/avatars/explorer.jpg",
   },
   navMain: [
     {
-      title: "Dashboard",
+      title: "Map View",
       url: "#",
-      icon: LayoutDashboardIcon,
+      icon: MapIcon,
     },
     {
-      title: "Lifecycle",
+      title: "Layers",
       url: "#",
-      icon: ListIcon,
+      icon: LayersIcon,
     },
     {
-      title: "Analytics",
+      title: "Navigation",
       url: "#",
-      icon: BarChartIcon,
+      icon: NavigationIcon,
     },
     {
-      title: "Projects",
+      title: "Satellite",
       url: "#",
-      icon: FolderIcon,
+      icon: SatelliteIcon,
     },
     {
-      title: "Team",
+      title: "Terrain",
       url: "#",
-      icon: UsersIcon,
+      icon: MountainIcon,
     },
   ],
   navClouds: [
     {
-      title: "Capture",
-      icon: CameraIcon,
+      title: "Bookmarks",
+      icon: BookmarkIcon,
       isActive: true,
       url: "#",
       items: [
         {
-          title: "Active Proposals",
+          title: "Saved Locations",
           url: "#",
         },
         {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: FileTextIcon,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
+          title: "Recent Places",
           url: "#",
         },
       ],
     },
     {
-      title: "Prompts",
-      icon: FileCodeIcon,
+      title: "Routes",
+      icon: RouteIcon,
       url: "#",
       items: [
         {
-          title: "Active Proposals",
+          title: "Planned Routes",
           url: "#",
         },
         {
-          title: "Archived",
+          title: "Route History",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Markers",
+      icon: MapPinIcon,
+      url: "#",
+      items: [
+        {
+          title: "Custom Markers",
+          url: "#",
+        },
+        {
+          title: "Points of Interest",
           url: "#",
         },
       ],
@@ -131,26 +129,26 @@ const data = {
   ],
   documents: [
     {
-      name: "Data Library",
+      name: "Map Data",
       url: "#",
-      icon: DatabaseIcon,
+      icon: LayersIcon,
     },
     {
-      name: "Reports",
+      name: "Coordinates",
       url: "#",
-      icon: ClipboardListIcon,
+      icon: CompassIcon,
     },
     {
-      name: "Word Assistant",
+      name: "Export Map",
       url: "#",
-      icon: FileIcon,
+      icon: MapIcon,
     },
   ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -159,10 +157,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <ArrowUpCircleIcon className="h-5 w-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <CompassIcon className="h-5 w-5" />
+                <span className="text-base font-semibold">GeoApp</span>
               </a>
             </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <div className="flex justify-center pt-2">
+              <ModeToggle />
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

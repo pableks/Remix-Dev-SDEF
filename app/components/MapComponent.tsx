@@ -4,11 +4,17 @@ import { Map, Marker, NavigationControl, Source, Layer } from 'react-map-gl/mapl
 import maplibregl, { MapRef } from 'react-map-gl/maplibre';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun } from 'lucide-react';
+import { SidebarTrigger } from './ui/sidebar';
+import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft } from 'lucide-react';
 import Pin from './Pin';
 import { cn } from '~/lib/utils';
 
 import type { MarkerDragEvent, LngLat } from 'react-map-gl/maplibre';
+
+interface MapComponentProps {
+  isInsetVariant?: boolean;
+  setIsInsetVariant?: (value: boolean) => void;
+}
 
 const initialViewState = {
   latitude: -33.0472,
@@ -57,7 +63,7 @@ const transformRequest = (url: string, resourceType?: maplibregl.ResourceType) =
   return { url };
 };
 
-export default function MapComponent() {
+export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapComponentProps) {
   const mapRef = useRef<MapRef>(null);
   const [marker, setMarker] = useState({
     latitude: -33.0472,
@@ -195,11 +201,28 @@ export default function MapComponent() {
 
   return (
     <div className="h-screen w-full relative">
+      {/* Sidebar Controls */}
+      <div className="absolute top-4 left-16 z-10 flex flex-col gap-2">
+        <SidebarTrigger className="bg-background/90 backdrop-blur-sm hover:bg-background/95 border-border" />
+        {/* Inset Toggle Button */}
+        {setIsInsetVariant && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setIsInsetVariant(!isInsetVariant)}
+            className="h-8 w-8 bg-background/90 backdrop-blur-sm hover:bg-background/95 shadow-lg border-border"
+            title={isInsetVariant ? "Disable Inset" : "Enable Inset"}
+          >
+            <LayoutPanelLeft className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      
       {/* Layer Selector */}
-      <Card className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm">
+      <Card className="absolute top-4 right-4 z-10 bg-background/90 backdrop-blur-sm border-border">
         <CardContent className="p-3">
           <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">Map Style</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-1">Map Style</h3>
             <div className="flex flex-col gap-1">
               {mapStyles.map((style) => (
                 <Button
@@ -208,8 +231,10 @@ export default function MapComponent() {
                   size="sm"
                   onClick={() => setCurrentMapStyle(style.id)}
                   className={cn(
-                    "justify-start gap-2 h-8",
-                    currentMapStyle === style.id && "bg-primary text-primary-foreground"
+                    "justify-start gap-2 h-8 text-foreground",
+                    currentMapStyle === style.id 
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                      : "bg-background/50 hover:bg-background/80 border-border hover:border-border/80"
                   )}
                 >
                   {style.icon}
@@ -219,15 +244,17 @@ export default function MapComponent() {
             </div>
             
             {/* Global Sky Toggle */}
-            <div className="border-t border-gray-200 my-2"></div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">Atmosphere</h3>
+            <div className="border-t border-border my-2"></div>
+            <h3 className="text-sm font-semibold text-foreground mb-1">Atmosphere</h3>
             <Button
               variant={skyEnabled ? 'default' : 'outline'}
               size="sm"
               onClick={toggleSky}
               className={cn(
-                "justify-start gap-2 h-8",
-                skyEnabled && "bg-primary text-primary-foreground"
+                "justify-start gap-2 h-8 text-foreground",
+                skyEnabled 
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                  : "bg-background/50 hover:bg-background/80 border-border hover:border-border/80"
               )}
             >
               {skyEnabled ? <CloudSun className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
@@ -237,15 +264,17 @@ export default function MapComponent() {
             {/* Elevation Toggle - Only show when satellite is selected */}
             {currentMapStyle === 'satellite' && (
               <>
-                <div className="border-t border-gray-200 my-2"></div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-1">3D Terrain</h3>
+                <div className="border-t border-border my-2"></div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">3D Terrain</h3>
                 <Button
                   variant={elevationEnabled ? 'default' : 'outline'}
                   size="sm"
                   onClick={toggleElevation}
                   className={cn(
-                    "justify-start gap-2 h-8",
-                    elevationEnabled && "bg-primary text-primary-foreground"
+                    "justify-start gap-2 h-8 text-foreground",
+                    elevationEnabled 
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                      : "bg-background/50 hover:bg-background/80 border-border hover:border-border/80"
                   )}
                 >
                   {elevationEnabled ? <MountainSnow className="h-4 w-4" /> : <Mountain className="h-4 w-4" />}
@@ -255,7 +284,7 @@ export default function MapComponent() {
                 {/* Exaggeration Slider - Only show when elevation is enabled */}
                 {elevationEnabled && (
                   <div className="mt-2">
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
                       Elevation Intensity: {exaggeration.toFixed(1)}x
                     </label>
                     <input
@@ -265,7 +294,7 @@ export default function MapComponent() {
                       step="0.1"
                       value={exaggeration}
                       onChange={(e) => setExaggeration(parseFloat(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer slider accent-primary"
                     />
                   </div>
                 )}
@@ -277,22 +306,22 @@ export default function MapComponent() {
 
       {/* Debug Panel */}
       {events.onDrag && (
-        <Card className="absolute bottom-4 left-4 z-10 bg-white/90 backdrop-blur-sm">
+        <Card className="absolute bottom-4 left-4 z-10 bg-background/90 backdrop-blur-sm border-border">
           <CardContent className="p-3">
-            <div className="text-xs space-y-1">
+            <div className="text-xs space-y-1 text-foreground">
               <p className="font-semibold">Marker Position:</p>
               <p>Lat: {events.onDrag.lat.toFixed(4)}</p>
               <p>Lng: {events.onDrag.lng.toFixed(4)}</p>
-              <p className="mt-2 text-orange-600">
+              <p className="mt-2 text-orange-500 dark:text-orange-400">
                 Sky: {skyEnabled ? 'ON' : 'OFF'}
               </p>
               {currentMapStyle === 'satellite' && (
                 <>
-                  <p className="mt-2 text-green-600">
+                  <p className="mt-2 text-green-600 dark:text-green-400">
                     3D Terrain: {elevationEnabled ? 'ON' : 'OFF'}
                   </p>
                   {elevationEnabled && (
-                    <p className="text-blue-600">
+                    <p className="text-blue-600 dark:text-blue-400">
                       Exaggeration: {exaggeration.toFixed(1)}x
                     </p>
                   )}

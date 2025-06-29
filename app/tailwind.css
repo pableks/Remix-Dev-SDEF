@@ -49,7 +49,8 @@ body {
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
-  .dark {
+  .dark,
+  :root[class~="dark"] {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -93,5 +94,28 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Custom range slider styling for better dark mode support */
+  .slider::-webkit-slider-thumb {
+    @apply appearance-none h-4 w-4 bg-primary rounded-full cursor-pointer shadow-md;
+  }
+  
+  .slider::-moz-range-thumb {
+    @apply h-4 w-4 bg-primary rounded-full cursor-pointer border-0 shadow-md;
+  }
+  
+  .slider::-webkit-slider-track {
+    @apply bg-muted rounded-lg;
+  }
+  
+  .slider::-moz-range-track {
+    @apply bg-muted rounded-lg border-0;
+  }
+  
+  .slider:focus {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
   }
 }

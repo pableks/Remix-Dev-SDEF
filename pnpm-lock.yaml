@@ -98,9 +98,12 @@ importers:
       recharts:
         specifier: ^3.0.2
         version: 3.0.2(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react-is@16.13.1)(react@18.3.1)(redux@5.0.1)
+      remix-themes:
+        specifier: ^2.0.4
+        version: 2.0.4(react-router@6.30.0(react@18.3.1))
       remix-utils:
         specifier: ^8.7.0
-        version: 8.7.0(react@18.3.1)(zod@3.25.67)
+        version: 8.7.0(react-router@6.30.0(react@18.3.1))(react@18.3.1)(zod@3.25.67)
       sonner:
         specifier: ^2.0.5
         version: 2.0.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -4102,6 +4105,11 @@ packages:
 
   remark-rehype@10.1.0:
     resolution: {integrity: sha512-EFmR5zppdBp0WQeDVZ/b66CWJipB2q2VLNFMabzDSGR66Z2fQii83G5gTBbgGEnEEA0QRussvrFHxk1HWGJskw==}
+
+  remix-themes@2.0.4:
+    resolution: {integrity: sha512-S1vIx86xdsMv+ceaWGWtlVZBMhU4tmZeBOBzOiZnhbHnGBbd5YeyIlZ5EL3BSEhZq35oEcINeTrMrVju9GPYEA==}
+    peerDependencies:
+      react-router: '>=7.0.0'
 
   remix-utils@8.7.0:
     resolution: {integrity: sha512-oRumofsYFaxHyPtqLuYe3g2nQi4SMYjCoebaeed0gYHIOKBiPPYdNP6cgmQbFjQQ5pwXV+uQiKLqO6pM9ep3VA==}
@@ -9265,11 +9273,16 @@ snapshots:
       mdast-util-to-hast: 12.3.0
       unified: 10.1.2
 
-  remix-utils@8.7.0(react@18.3.1)(zod@3.25.67):
+  remix-themes@2.0.4(react-router@6.30.0(react@18.3.1)):
+    dependencies:
+      react-router: 6.30.0(react@18.3.1)
+
+  remix-utils@8.7.0(react-router@6.30.0(react@18.3.1))(react@18.3.1)(zod@3.25.67):
     dependencies:
       type-fest: 4.41.0
     optionalDependencies:
       react: 18.3.1
+      react-router: 6.30.0(react@18.3.1)
       zod: 3.25.67
 
   require-like@0.1.2: {}
