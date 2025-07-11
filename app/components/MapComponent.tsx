@@ -1,19 +1,37 @@
 import * as React from 'react';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Map, Marker, NavigationControl, Source, Layer } from 'react-map-gl/maplibre';
 import maplibregl, { MapRef } from 'react-map-gl/maplibre';
+import { useNavigate } from '@remix-run/react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { SidebarTrigger } from './ui/sidebar';
-import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft } from 'lucide-react';
+import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft, ArrowLeft } from 'lucide-react';
 import Pin from './Pin';
 import { cn } from '~/lib/utils';
+import { DashboardPage } from '~/constants/routes';
+import LayerControlPanel from './LayerControlPanel';
+import { 
+  LAYER_CONFIGS, 
+  type LayerConfig, 
+  type EnhancedLayer,
+  createRoadNetworkLayers,
+  createPriorityPolygonLayers,
+  createWaterPolygonLayers,
+  createEnhancedCentralesLayers,
+  createAdministrativeRegionLayers,
+  createElectricalSystemLayers,
+  getIconPath,
+  getIconColor,
+  placemarkIcon
+} from '~/lib/map-layers';
 
 import type { MarkerDragEvent, LngLat } from 'react-map-gl/maplibre';
 
 interface MapComponentProps {
   isInsetVariant?: boolean;
   setIsInsetVariant?: (value: boolean) => void;
+  showBackButton?: boolean;
 }
 
 const initialViewState = {
@@ -53,8 +71,44 @@ const mapStyles: MapStyleOption[] = [
   }
 ];
 
+// Helper function to render HTML content safely
+const renderHTMLContent = (htmlContent: string): string => {
+  return htmlContent
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .trim();
+};
+
+// Helper function to get display name for water bodies
+const getWaterDisplayName = (feature: any): string => {
+  const name = feature.properties?.Name || feature.properties?.NOMBRE;
+  if (!name || name.trim() === '') {
+    const tipo = feature.properties?.TIPO_MAGUA || 'Cuerpo de Agua';
+    const fid = feature.properties?.FID;
+    return `${tipo}${fid ? ` #${fid}` : ''}`;
+  }
+  return name;
+};
+
+// Helper function to get road type display name
+const getRoadTypeDisplayName = (sourceLayer: string): string => {
+  switch (sourceLayer) {
+    case 'red_vial_valparaiso_pavimento':
+      return 'Pavimento';
+    case 'red_vial_valparaiso_ripio':
+      return 'Ripio';
+    case 'red_vial_valparaiso_tierra':
+      return 'Tierra';
+    default:
+      return sourceLayer;
+  }
+};
+
 // Transform request function for liberty style
-const transformRequest = (url: string, resourceType?: maplibregl.ResourceType) => {
+const transformRequest = (url: string, resourceType?: any) => {
   if (resourceType === 'Source' && url.includes('openfreemap.org')) {
     return {
       url: url
@@ -63,8 +117,9 @@ const transformRequest = (url: string, resourceType?: maplibregl.ResourceType) =
   return { url };
 };
 
-export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapComponentProps) {
+export default function MapComponent({ isInsetVariant, setIsInsetVariant, showBackButton = false }: MapComponentProps) {
   const mapRef = useRef<MapRef>(null);
+  const navigate = useNavigate();
   const [marker, setMarker] = useState({
     latitude: -33.0472,
     longitude: -71.6127
@@ -74,6 +129,284 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
   const [elevationEnabled, setElevationEnabled] = useState(false);
   const [exaggeration, setExaggeration] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(false);
+  const [hoverInfo, setHoverInfo] = useState<{feature: any, x: number, y: number} | null>(null);
+
+  // Layer management state
+  const [layers, setLayers] = useState<{ [key: string]: boolean }>(() => {
+    const initialLayers: { [key: string]: boolean } = {};
+    LAYER_CONFIGS.forEach(config => {
+      initialLayers[config.id] = config.enabled;
+    });
+    return initialLayers;
+  });
+  const [layerData, setLayerData] = useState<{ [key: string]: any }>({});
+  const [loadedLayers, setLoadedLayers] = useState<Set<string>>(new Set());
+  const [isLayerLoading, setIsLayerLoading] = useState(false);
+  const [enhancedLayers, setEnhancedLayers] = useState<{ [key: string]: EnhancedLayer[] }>({});
+  const [iconsReady, setIconsReady] = useState(false);
+  const [mapStyleReady, setMapStyleReady] = useState(false);
+  const [layerRevision, setLayerRevision] = useState(0);
+
+  // Layer loading functions
+  const loadLayerData = useCallback(async (layerId: string) => {
+    const config = LAYER_CONFIGS.find(c => c.id === layerId);
+    if (!config || layerData[layerId]) return;
+
+    try {
+      const response = await fetch(config.file);
+      if (!response.ok) {
+        throw new Error(`Failed to load ${config.name}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      
+      setLayerData(prev => ({
+        ...prev,
+        [layerId]: data
+      }));
+
+      // Create enhanced layers based on type
+      let createdLayers: EnhancedLayer[] = [];
+      switch (config.type) {
+        case 'road-network':
+          createdLayers = createRoadNetworkLayers(data);
+          break;
+        case 'priority-polygons':
+          createdLayers = createPriorityPolygonLayers(data);
+          break;
+        case 'water-polygons':
+          createdLayers = createWaterPolygonLayers(data);
+          break;
+        case 'point-enhanced':
+          createdLayers = createEnhancedCentralesLayers(data, config.id);
+          break;
+        case 'administrative-regions':
+          createdLayers = createAdministrativeRegionLayers(data);
+          break;
+        case 'electrical-system':
+          createdLayers = createElectricalSystemLayers(data);
+          break;
+      }
+
+      setEnhancedLayers(prev => ({
+        ...prev,
+        [layerId]: createdLayers
+      }));
+
+      setLoadedLayers(prev => new Set(prev).add(layerId));
+    } catch (error) {
+      console.error(`Error loading layer ${layerId}:`, error);
+    }
+  }, [layerData]);
+
+  // Load icons for enhanced point layers - based on the example
+  const loadIcons = useCallback(async () => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    setIconsReady(false);
+    const iconsToLoad = new Set<{iconId: string, iconPath: string, color: string}>();
+
+
+
+    // Add placemark icon first
+    if (!map.hasImage('placemark-icon')) {
+      const img = new Image();
+      img.onload = () => {
+        if (!map.hasImage('placemark-icon')) {
+          map.addImage('placemark-icon', img);
+        }
+      };
+      img.onerror = () => {
+        console.warn('Failed to load placemark icon');
+      };
+      img.src = placemarkIcon;
+    }
+
+    // Collect icons from all point-enhanced layers
+    const pointLayers = LAYER_CONFIGS.filter(config => config.type === 'point-enhanced');
+    for (const config of pointLayers) {
+      if (layers[config.id] && layerData[config.id]) {
+        const data = layerData[config.id];
+        if (data && data.features) {
+          data.features.forEach((feature: any) => {
+            const iconPath = getIconPath(feature);
+            const iconColor = getIconColor(feature);
+            const iconId = `${config.id}-${iconPath.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            iconsToLoad.add({ iconId, iconPath, color: iconColor });
+          });
+        }
+      }
+    }
+
+    // Load each icon
+    for (const { iconId, iconPath, color } of iconsToLoad) {
+      if (!map.hasImage(iconId)) {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          img.onload = () => {
+            try {
+              if (!map.hasImage(iconId)) {
+                map.addImage(iconId, img);
+                console.log(`Successfully loaded icon: ${iconId} (${img.width}x${img.height})`);
+              }
+            } catch (error) {
+              console.error(`Error adding icon ${iconId} to map:`, error);
+            }
+          };
+          
+          img.onerror = () => {
+            console.warn(`Failed to load icon: ${iconPath}`);
+          };
+          
+          img.src = iconPath;
+        } catch (error) {
+          console.error(`Error loading icon ${iconPath}:`, error);
+        }
+      }
+    }
+
+    // Set icons ready after a short delay to allow loading
+    setTimeout(() => {
+      setIconsReady(true);
+    }, 1000);
+  }, [layers, layerData]);
+
+  // Layer toggle handler
+  const handleLayerToggle = useCallback(async (layerId: string, enabled: boolean) => {
+    setLayers(prev => ({
+      ...prev,
+      [layerId]: enabled
+    }));
+
+    if (enabled && !loadedLayers.has(layerId)) {
+      setIsLayerLoading(true);
+      await loadLayerData(layerId);
+      setIsLayerLoading(false);
+    }
+  }, [loadLayerData, loadedLayers]);
+
+  // Load enabled layers on mount
+  useEffect(() => {
+    const loadEnabledLayers = async () => {
+      setIsLayerLoading(true);
+      const enabledLayerIds = Object.entries(layers)
+        .filter(([_, enabled]) => enabled)
+        .map(([layerId, _]) => layerId);
+
+      for (const layerId of enabledLayerIds) {
+        if (!loadedLayers.has(layerId)) {
+          await loadLayerData(layerId);
+        }
+      }
+      setIsLayerLoading(false);
+      // Trigger layer re-evaluation after loading
+      setLayerRevision(prev => prev + 1);
+    };
+
+    loadEnabledLayers();
+  }, []);
+
+  // Load icons when map loads or layers change
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (map && map.isStyleLoaded()) {
+      loadIcons();
+    }
+  }, [loadIcons, currentMapStyle]);
+
+  // Monitor map style loading for all styles
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    setMapStyleReady(false);
+
+    const checkMapStyleReady = async () => {
+      if (currentMapStyle === 'satellite') {
+        // For satellite, check if our custom satellite source is loaded
+        const satelliteSource = map.getSource('satellite-source');
+        if (satelliteSource && map.isSourceLoaded('satellite-source')) {
+          setMapStyleReady(true);
+          // Load enabled layers and trigger re-evaluation
+          await loadEnabledLayersOnMapReady();
+        } else {
+          // Keep checking until satellite is ready
+          setTimeout(checkMapStyleReady, 100);
+        }
+      } else {
+        // For other styles, check if the style is loaded and sources are ready
+        if (map.isStyleLoaded()) {
+          // Additional check for sources being loaded
+          const sources = map.getStyle().sources;
+          const allSourcesLoaded = Object.keys(sources).every(sourceId => {
+            try {
+              return map.isSourceLoaded(sourceId);
+            } catch (e) {
+              // Some sources might not be loaded yet, that's ok
+              return false;
+            }
+          });
+
+          if (allSourcesLoaded) {
+            setMapStyleReady(true);
+            // Load enabled layers and trigger re-evaluation
+            await loadEnabledLayersOnMapReady();
+          } else {
+            setTimeout(checkMapStyleReady, 100);
+          }
+        } else {
+          setTimeout(checkMapStyleReady, 100);
+        }
+      }
+    };
+
+    // Start checking after a brief delay to allow sources to be added
+    setTimeout(checkMapStyleReady, 200);
+  }, [currentMapStyle]);
+
+  // Helper function to load enabled layers when map is ready
+  const loadEnabledLayersOnMapReady = useCallback(async () => {
+    const enabledLayerIds = Object.entries(layers)
+      .filter(([_, enabled]) => enabled)
+      .map(([layerId, _]) => layerId);
+
+    for (const layerId of enabledLayerIds) {
+      if (!loadedLayers.has(layerId)) {
+        await loadLayerData(layerId);
+      }
+    }
+    // Trigger layer re-evaluation after loading
+    setLayerRevision(prev => prev + 1);
+  }, [layers, loadedLayers, loadLayerData]);
+
+  // Also check map readiness on initial load
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    const handleMapLoad = async () => {
+      // Trigger the style readiness check when map loads
+      setMapStyleReady(false);
+      setTimeout(async () => {
+        setMapStyleReady(true);
+        // Load enabled layers and trigger re-evaluation on initial load
+        await loadEnabledLayersOnMapReady();
+      }, 500);
+    };
+
+    // Check if map is already loaded
+    if (map.loaded()) {
+      handleMapLoad();
+    } else {
+      map.on('load', handleMapLoad);
+    }
+
+    return () => {
+      map.off('load', handleMapLoad);
+    };
+  }, [loadEnabledLayersOnMapReady]);
 
   const onMarkerDragStart = useCallback((event: MarkerDragEvent) => {
     logEvents(_events => ({ ..._events, onDragStart: event.lngLat }));
@@ -90,6 +423,16 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
 
   const onMarkerDragEnd = useCallback((event: MarkerDragEvent) => {
     logEvents(_events => ({ ..._events, onDragEnd: event.lngLat }));
+  }, []);
+
+  const onHover = useCallback((event: any) => {
+    const {
+      features,
+      point: { x, y }
+    } = event;
+    const hoveredFeature = features && features[0];
+
+    setHoverInfo(hoveredFeature && { feature: hoveredFeature, x, y });
   }, []);
 
   const currentStyle = mapStyles.find(style => style.id === currentMapStyle);
@@ -109,7 +452,7 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
     setSkyEnabled(!skyEnabled);
   };
 
-  // Add onLoad handler to set initial pitch/maxPitch
+  // Add onLoad handler to set initial pitch/maxPitch and load icons
   const handleMapLoad = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
@@ -117,7 +460,8 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
     if (map.getPitch() > 60) {
       map.setPitch(60);
     }
-  }, []);
+    loadIcons();
+  }, [loadIcons]);
 
   // Effect to handle terrain 3D elevation
   useEffect(() => {
@@ -199,6 +543,65 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
     };
   }, [currentMapStyle, skyEnabled]);
 
+  // Memoize rendered layers to avoid unnecessary re-renders
+  const renderedLayers = useMemo(() => {
+    // Only render layers if icons are ready AND map style is ready
+    const shouldRenderLayers = iconsReady && mapStyleReady;
+    if (!shouldRenderLayers) return [];
+    
+    const layerComponents: React.ReactElement[] = [];
+    
+    Object.entries(layers).forEach(([layerId, enabled]) => {
+      if (enabled && enhancedLayers[layerId]) {
+        enhancedLayers[layerId].forEach((enhancedLayer, index) => {
+          const sourceId = `${layerId}-${index}`;
+          const layerKey = `${layerId}-${index}`;
+          
+          // Add beforeId to ensure layers render above satellite layers
+          const layerWithBeforeId = {
+            ...enhancedLayer.layer,
+            beforeId: currentMapStyle === 'satellite' ? undefined : enhancedLayer.layer.beforeId
+          };
+          
+          layerComponents.push(
+            <Source key={`source-${layerKey}`} id={sourceId} type="geojson" data={enhancedLayer.data}>
+              <Layer key={`layer-${layerKey}`} {...layerWithBeforeId} source={sourceId} />
+              {/* Render text layer if it exists */}
+              {enhancedLayer.textLayer && (
+                <Layer key={`text-${layerKey}`} {...enhancedLayer.textLayer} source={sourceId} />
+              )}
+              {/* Render stroke layer if it exists */}
+              {enhancedLayer.strokeLayer && (
+                <Layer key={`stroke-${layerKey}`} {...enhancedLayer.strokeLayer} source={sourceId} />
+              )}
+            </Source>
+          );
+        });
+      }
+    });
+
+    return layerComponents;
+  }, [layers, enhancedLayers, currentMapStyle, iconsReady, mapStyleReady, layerRevision]);
+
+  // Get interactive layer IDs for hover functionality
+  const interactiveLayerIds = useMemo(() => {
+    const layerIds: string[] = [];
+    
+    Object.entries(layers).forEach(([layerId, enabled]) => {
+      if (enabled && enhancedLayers[layerId]) {
+        enhancedLayers[layerId].forEach((enhancedLayer) => {
+          layerIds.push(enhancedLayer.layer.id);
+          // Add text layer IDs for interaction too
+          if (enhancedLayer.textLayer) {
+            layerIds.push(enhancedLayer.textLayer.id);
+          }
+        });
+      }
+    });
+
+    return layerIds;
+  }, [layers, enhancedLayers]);
+
   return (
     <div className="h-screen w-full relative">
       {/* Sidebar Controls */}
@@ -216,10 +619,32 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
             <LayoutPanelLeft className="h-4 w-4" />
           </Button>
         )}
+        {/* Back Button */}
+        {showBackButton && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate(DashboardPage)}
+            className="h-8 w-8 bg-background/90 backdrop-blur-sm hover:bg-background/95 shadow-lg border-border"
+            title="Volver al Dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       
-      {/* Layer Selector */}
-      <Card className="absolute top-4 right-4 z-10 bg-background/90 backdrop-blur-sm border-border">
+      {/* Layer Control Panel */}
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+        <LayerControlPanel
+          layers={layers}
+          onLayerToggle={handleLayerToggle}
+          isLoading={isLayerLoading}
+          loadedLayers={loadedLayers}
+        />
+      </div>
+
+      {/* Map Style Selector */}
+      <Card className="absolute top-16 right-4 z-10 bg-background/90 backdrop-blur-sm border-border">
         <CardContent className="p-3">
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground mb-1">Map Style</h3>
@@ -332,7 +757,13 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
         </Card>
       )}
 
-      <Map ref={mapRef} {...mapProps} onLoad={handleMapLoad}>
+      <Map 
+        ref={mapRef} 
+        {...mapProps} 
+        onLoad={handleMapLoad}
+        interactiveLayerIds={interactiveLayerIds}
+        onMouseMove={onHover}
+      >
         {/* Satellite Layers */}
         {currentMapStyle === 'satellite' && (
           <>
@@ -393,6 +824,9 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
           </>
         )}
 
+        {/* Render GeoJSON Layers - Make sure they appear on top of satellite layers */}
+        {renderedLayers}
+
         {/* Draggable Marker */}
         <Marker
           longitude={marker.longitude}
@@ -409,6 +843,95 @@ export default function MapComponent({ isInsetVariant, setIsInsetVariant }: MapC
         {/* Navigation Controls */}
         <NavigationControl position="top-left" />
       </Map>
+
+      {/* Tooltip */}
+      {hoverInfo && (
+        <div 
+          className="absolute bg-black/80 text-white p-2 rounded shadow-lg pointer-events-none z-50 text-xs max-w-xs"
+          style={{
+            left: hoverInfo.x,
+            top: hoverInfo.y
+          }}
+        >
+          <div><strong>Name:</strong> {
+            hoverInfo.feature.properties.name || 
+            hoverInfo.feature.properties.Name || 
+            getWaterDisplayName(hoverInfo.feature)
+          }</div>
+          <div><strong>Type:</strong> {hoverInfo.feature.geometry.type}</div>
+          
+          {/* Water body specific information */}
+          {hoverInfo.feature.properties.TIPO_MAGUA && (
+            <div><strong>Tipo:</strong> {hoverInfo.feature.properties.TIPO_MAGUA}</div>
+          )}
+          {hoverInfo.feature.properties.AREA_KM2 && (
+            <div><strong>Área:</strong> {hoverInfo.feature.properties.AREA_KM2} km²</div>
+          )}
+          {hoverInfo.feature.properties.COMUNA && (
+            <div><strong>Comuna:</strong> {hoverInfo.feature.properties.COMUNA}</div>
+          )}
+          
+          {/* Priority polygon and road network specific information */}
+          {hoverInfo.feature.properties.source_layer && (
+            <div><strong>Source Layer:</strong> {hoverInfo.feature.properties.source_layer}</div>
+          )}
+          
+          {/* Road network specific information */}
+          {hoverInfo.feature.geometry.type === 'LineString' && hoverInfo.feature.properties.source_layer && (
+            <div><strong>Tipo de Superficie:</strong> {getRoadTypeDisplayName(hoverInfo.feature.properties.source_layer)}</div>
+          )}
+          
+          {/* KML metadata for points */}
+          {hoverInfo.feature.properties.kml_folder && (
+            <div><strong>Folder:</strong> {hoverInfo.feature.properties.kml_folder}</div>
+          )}
+          {hoverInfo.feature.properties.kml_styleUrl && (
+            <div><strong>Style:</strong> {hoverInfo.feature.properties.kml_styleUrl}</div>
+          )}
+          
+          {/* Show detailed description if available */}
+          {hoverInfo.feature.properties.kml_description && (
+            <div className="mt-2">
+              <strong>Description:</strong>
+              <div className="max-h-32 overflow-y-auto text-xs mt-1 bg-gray-100 text-black p-1 rounded whitespace-pre-wrap">
+                {hoverInfo.feature.properties.kml_description}
+              </div>
+            </div>
+          )}
+          
+          {/* Handle HTML descriptions from water polygons */}
+          {!hoverInfo.feature.properties.kml_description && 
+           hoverInfo.feature.properties.Description && (
+            <div className="mt-2">
+              <strong>Description:</strong>
+              <div className="max-h-32 overflow-y-auto text-xs mt-1 bg-gray-100 text-black p-1 rounded whitespace-pre-wrap">
+                {hoverInfo.feature.properties.Description.includes('<html>') ? 
+                  renderHTMLContent(hoverInfo.feature.properties.Description) : 
+                  hoverInfo.feature.properties.Description}
+              </div>
+            </div>
+          )}
+          
+          {/* Fallback to regular description if no HTML */}
+          {!hoverInfo.feature.properties.kml_description && 
+           !hoverInfo.feature.properties.Description && 
+           hoverInfo.feature.properties.description && (
+            <div className="mt-2">
+              <strong>Description:</strong>
+              <div className="max-h-24 overflow-y-auto text-xs mt-1">
+                {hoverInfo.feature.properties.description}
+              </div>
+            </div>
+          )}
+          
+          {hoverInfo.feature.properties.kml_icon_href && (
+            <div><strong>Icon:</strong> {hoverInfo.feature.properties.kml_icon_href}</div>
+          )}
+          {hoverInfo.feature.properties.kml_icon_scale && (
+            <div><strong>Scale:</strong> {hoverInfo.feature.properties.kml_icon_scale}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 } 

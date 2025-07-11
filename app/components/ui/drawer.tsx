@@ -4,11 +4,13 @@ import { Drawer as DrawerPrimitive } from "vaul"
 import { cn } from "~/lib/utils"
 
 const Drawer = ({
-  shouldScaleBackground = true,
+  shouldScaleBackground = false,
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root
     shouldScaleBackground={shouldScaleBackground}
+    modal={modal}
     {...props}
   />
 )
@@ -16,7 +18,11 @@ Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger
 
-const DrawerPortal = DrawerPrimitive.Portal
+const DrawerPortal = ({ children }: { children: React.ReactNode }) => {
+  if (typeof window === "undefined") return null;
+  const container = document.getElementById("theme-portal-root") ?? undefined;
+  return <DrawerPrimitive.Portal container={container}>{children}</DrawerPrimitive.Portal>;
+}
 
 const DrawerClose = DrawerPrimitive.Close
 
@@ -26,7 +32,8 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-50 bg-black/80", className)}
+    className={cn("fixed inset-0 z-50 bg-transparent pointer-events-none", className)}
+    style={{ pointerEvents: 'none' }}
     {...props}
   />
 ))
@@ -41,9 +48,16 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex flex-col rounded-t-[10px] border bg-background h-[400px]",
         className
       )}
+      style={{ 
+        pointerEvents: 'auto',
+        // Ensure the drawer only captures events within its bounds
+        touchAction: 'pan-y',
+        // Prevent the drawer from blocking events outside its area
+        isolation: 'isolate'
+      }}
       {...props}
     >
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />

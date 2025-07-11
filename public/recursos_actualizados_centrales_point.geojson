@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "recursos_actualizados_Centrales_Point",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "Name": "P1", "Description": "" }, "geometry": { "type": "Point", "coordinates": [ -71.559768199249945, -33.06821638577123, 0.0 ] } },
+{ "type": "Feature", "properties": { "Name": "P2", "Description": "" }, "geometry": { "type": "Point", "coordinates": [ -71.614380818691345, -33.634389680698362, 0.0 ] } },
+{ "type": "Feature", "properties": { "Name": "P3", "Description": "" }, "geometry": { "type": "Point", "coordinates": [ -71.249206682641699, -32.454129816957888, 0.0 ] } }
+]
+}

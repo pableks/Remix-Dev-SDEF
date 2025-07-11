@@ -77,8 +77,11 @@ export function App() {
         <PreventFlashOnWrongTheme ssrTheme={Boolean(data.theme)} />
         <Links />
       </head>
-      <body>
-        <Outlet />
+      {/* Add theme class to body as well */}
+      <body className={clsx(theme)}>
+        <div id="theme-portal-root" className={clsx(theme)}>
+          <Outlet />
+        </div>
         <ScrollRestoration />
         <Scripts />
       </body>
