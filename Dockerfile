@@ -56,7 +56,7 @@ EXPOSE 3000
 # Variables de entorno
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV DOMAIN=http://52.170.190.53/
+ENV DOMAIN=52.170.190.53
 ENV BACKEND_URL=http://172.203.150.174:8000
 ENV SESSION_SECRET=tu-session-secret-muy-seguro-cambia-esto-en-produccion
 ENV SESSION_COOKIE_MAX_AGE=86400
