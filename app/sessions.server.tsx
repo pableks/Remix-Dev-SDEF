@@ -11,10 +11,7 @@ const sessionStorage = createCookieSessionStorage({
     httpOnly: true,
     sameSite: "lax",
     secrets: ["s3cr3t"],
-    // Set domain and secure only if in production
-    ...(isProduction
-      ? { domain: "your-production-domain.com", secure: true }
-      : {}),
+
   },
 })
 
@@ -39,6 +36,6 @@ export const { getSession, commitSession, destroySession } =
       path: "/",
       sameSite: "lax",
       secrets: [process.env.SESSION_SECRET || "default-secret"],
-      secure: process.env.NODE_ENV === "production",
+      secure: false,
     },
   }); 
