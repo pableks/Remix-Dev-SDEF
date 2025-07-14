@@ -6,18 +6,10 @@ import type GeoJSON from 'geojson';
 // Layer configuration system
 export const LAYER_CONFIGS = [
   {
-    id: 'centrales-enhanced',
-    name: 'Centrales Enhanced',
-    file: '/recursos_actualizados_centrales_point_enhanced.geojson',
+    id: 'recursos-actualizados',
+    name: 'Recursos Actualizados',
+    file: '/recursos_actualizados.geojson',
     color: '#4CAF50',
-    enabled: true,
-    type: 'point-enhanced' as const
-  },
-  {
-    id: 'zonasur-activas',
-    name: 'Zona Sur (Activas)',
-    file: '/recursos_actualizados_zonasur_activas.geojson',
-    color: '#ff0000',
     enabled: true,
     type: 'point-enhanced' as const
   },
@@ -106,12 +98,38 @@ export const convertKmlColor = (kmlColor: string): string => {
 export const getIconPath = (feature: any): string => {
   const kmlIconHref = feature.properties?.kml_icon_href;
   
-  // Map common KML icon references to actual files
+  // Direct mapping from kml_icon_href to actual file paths
   if (kmlIconHref) {
-    if (kmlIconHref.includes('frecuencia') || kmlIconHref.includes('frequency')) {
-      return '/files/frecuencia_1.png';
-    } else if (kmlIconHref.includes('casco') || kmlIconHref.includes('helmet')) {
-      return '/files/casco-de-seguridad_01_1.png';
+    // Map the exact icon href to the correct file path
+    switch (kmlIconHref) {
+      case 'files/frecuencia_1.png':
+        return '/files/frecuencia_1.png';
+      case 'files/casco-de-seguridad_01_1.png':
+        return '/files/casco-de-seguridad_01_1.png';
+      case 'files/torre-de-senal_1.png':
+        return '/files/torre-de-senal_1.png';
+      case 'files/viajar_1.png':
+        return '/files/viajar_1.png';
+      case 'files/modo-avion_1.png':
+        return '/files/modo-avion_1.png';
+      case 'files/camion-de-bomberos (5)_1.png':
+        return '/files/camion-de-bomberos (5)_1.png';
+      default:
+        // Fallback for partial matches
+        if (kmlIconHref.includes('frecuencia')) {
+          return '/files/frecuencia_1.png';
+        } else if (kmlIconHref.includes('casco')) {
+          return '/files/casco-de-seguridad_01_1.png';
+        } else if (kmlIconHref.includes('torre')) {
+          return '/files/torre-de-senal_1.png';
+        } else if (kmlIconHref.includes('viajar')) {
+          return '/files/viajar_1.png';
+        } else if (kmlIconHref.includes('avion')) {
+          return '/files/modo-avion_1.png';
+        } else if (kmlIconHref.includes('bomberos')) {
+          return '/files/camion-de-bomberos (5)_1.png';
+        }
+        break;
     }
   }
   
@@ -122,6 +140,32 @@ export const getIconPath = (feature: any): string => {
       return '/files/frecuencia_1.png';
     } else if (styleUrl.includes('casco')) {
       return '/files/casco-de-seguridad_01_1.png';
+    } else if (styleUrl.includes('torre')) {
+      return '/files/torre-de-senal_1.png';
+    } else if (styleUrl.includes('helicoptero')) {
+      return '/files/viajar_1.png';
+    } else if (styleUrl.includes('avion')) {
+      return '/files/modo-avion_1.png';
+    } else if (styleUrl.includes('bomberos')) {
+      return '/files/camion-de-bomberos (5)_1.png';
+    }
+  }
+
+  // Check folder for additional context
+  const folder = feature.properties?.kml_folder;
+  if (folder) {
+    if (folder.includes('Centrales')) {
+      return '/files/frecuencia_1.png';
+    } else if (folder.includes('ZONA')) {
+      return '/files/casco-de-seguridad_01_1.png';
+    } else if (folder.includes('TORRES')) {
+      return '/files/torre-de-senal_1.png';
+    } else if (folder.includes('HELIPISTAS')) {
+      return '/files/viajar_1.png';
+    } else if (folder.includes('PISTAS AVIONES')) {
+      return '/files/modo-avion_1.png';
+    } else if (folder.includes('PC-Code')) {
+      return '/files/camion-de-bomberos (5)_1.png';
     }
   }
   
