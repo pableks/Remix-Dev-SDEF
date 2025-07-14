@@ -516,199 +516,35 @@ ${index + 1}. ${brigade.nombre} (${brigade.estado})
 Generado: ${new Date().toLocaleString()}
       `.trim();
 
-      // Try modern clipboard API first
-      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      // Simple and effective clipboard solution for HTTP environments
+      const unsecuredCopyToClipboard = (text: string) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          alert('Datos del incendio copiados al portapapeles');
+        } catch (err) {
+          console.error('Unable to copy to clipboard', err);
+          alert('Error al copiar los datos al portapapeles');
+        }
+        document.body.removeChild(textArea);
+      };
+
+      // Use modern API if available (HTTPS), otherwise use fallback
+      if (navigator.clipboard) {
         try {
           await navigator.clipboard.writeText(formattedData);
           alert('Datos del incendio copiados al portapapeles');
-          return;
         } catch (err) {
-          console.log('Modern clipboard failed, trying fallback');
+          console.log('Modern clipboard failed, using fallback');
+          unsecuredCopyToClipboard(formattedData);
         }
+      } else {
+        unsecuredCopyToClipboard(formattedData);
       }
-
-      // Enhanced fallback for HTTP environments (Azure VM, etc.)
-      let copySuccessful = false;
-      
-      // Method 1: Enhanced execCommand with multiple attempts
-      for (let attempt = 0; attempt < 3 && !copySuccessful; attempt++) {
-        const textArea = document.createElement('textarea');
-        textArea.value = formattedData;
-        
-        // Enhanced styling for better compatibility
-        textArea.style.position = 'fixed';
-        textArea.style.left = '0';
-        textArea.style.top = '0';
-        textArea.style.width = '2em';
-        textArea.style.height = '2em';
-        textArea.style.padding = '0';
-        textArea.style.border = 'none';
-        textArea.style.outline = 'none';
-        textArea.style.boxShadow = 'none';
-        textArea.style.background = 'transparent';
-        textArea.style.zIndex = '-1';
-        textArea.setAttribute('readonly', '');
-        textArea.style.userSelect = 'text';
-        (textArea.style as any).webkitUserSelect = 'text';
-        (textArea.style as any).mozUserSelect = 'text';
-        (textArea.style as any).msUserSelect = 'text';
-        
-        document.body.appendChild(textArea);
-        
-        try {
-          // Force focus and selection
-          textArea.focus();
-          textArea.select();
-          textArea.setSelectionRange(0, formattedData.length);
-          
-          // Give browser time to process
-          await new Promise(resolve => setTimeout(resolve, 10));
-          
-          // Attempt copy
-          copySuccessful = document.execCommand('copy');
-          
-          if (copySuccessful) {
-            alert('Datos del incendio copiados al portapapeles');
-            document.body.removeChild(textArea);
-            return;
-          }
-        } catch (err) {
-          console.log(`Copy attempt ${attempt + 1} failed:`, err);
-        } finally {
-          if (document.body.contains(textArea)) {
-            document.body.removeChild(textArea);
-          }
-        }
-      }
-
-      // Method 2: Create a visible but temporary copy interface
-      if (!copySuccessful) {
-        const overlay = document.createElement('div');
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-        overlay.style.zIndex = '10000';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-
-        const modal = document.createElement('div');
-        modal.style.backgroundColor = 'white';
-        modal.style.borderRadius = '8px';
-        modal.style.padding = '20px';
-        modal.style.maxWidth = '90vw';
-        modal.style.maxHeight = '90vh';
-        modal.style.overflow = 'auto';
-        modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
-
-        const title = document.createElement('h3');
-        title.textContent = 'Copiar Datos del Incendio';
-        title.style.marginTop = '0';
-        title.style.marginBottom = '15px';
-        title.style.color = '#333';
-        title.style.textAlign = 'center';
-
-        const instructions = document.createElement('p');
-        instructions.innerHTML = 'El texto está seleccionado. Usa <strong>Ctrl+C</strong> (o Cmd+C en Mac) para copiar:';
-        instructions.style.marginBottom = '15px';
-        instructions.style.color = '#666';
-        instructions.style.textAlign = 'center';
-
-        const textarea = document.createElement('textarea');
-        textarea.value = formattedData;
-        textarea.style.width = '100%';
-        textarea.style.height = '400px';
-        textarea.style.fontFamily = 'monospace';
-        textarea.style.fontSize = '12px';
-        textarea.style.border = '2px solid #007bff';
-        textarea.style.borderRadius = '4px';
-        textarea.style.padding = '10px';
-        textarea.style.marginBottom = '15px';
-        textarea.readOnly = true;
-
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.textAlign = 'center';
-        buttonContainer.style.gap = '10px';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'center';
-
-        const copyButton = document.createElement('button');
-        copyButton.textContent = 'Intentar Copiar Nuevamente';
-        copyButton.style.padding = '10px 20px';
-        copyButton.style.backgroundColor = '#28a745';
-        copyButton.style.color = 'white';
-        copyButton.style.border = 'none';
-        copyButton.style.borderRadius = '4px';
-        copyButton.style.cursor = 'pointer';
-        copyButton.style.marginRight = '10px';
-
-        const closeButton = document.createElement('button');
-        closeButton.textContent = 'Cerrar';
-        closeButton.style.padding = '10px 20px';
-        closeButton.style.backgroundColor = '#6c757d';
-        closeButton.style.color = 'white';
-        closeButton.style.border = 'none';
-        closeButton.style.borderRadius = '4px';
-        closeButton.style.cursor = 'pointer';
-
-        buttonContainer.appendChild(copyButton);
-        buttonContainer.appendChild(closeButton);
-
-        modal.appendChild(title);
-        modal.appendChild(instructions);
-        modal.appendChild(textarea);
-        modal.appendChild(buttonContainer);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-
-        // Auto-select text
-        setTimeout(() => {
-          textarea.focus();
-          textarea.select();
-          textarea.setSelectionRange(0, formattedData.length);
-        }, 100);
-
-        // Copy button functionality
-        copyButton.onclick = async () => {
-          textarea.select();
-          textarea.setSelectionRange(0, formattedData.length);
-          try {
-            const success = document.execCommand('copy');
-            if (success) {
-              alert('¡Copiado exitosamente!');
-              document.body.removeChild(overlay);
-            } else {
-              alert('Por favor, selecciona el texto y usa Ctrl+C manualmente');
-            }
-          } catch (err) {
-            alert('Por favor, selecciona el texto y usa Ctrl+C manualmente');
-          }
-        };
-
-        closeButton.onclick = () => {
-          document.body.removeChild(overlay);
-        };
-
-        // Close on escape
-        const handleEscape = (e: KeyboardEvent) => {
-          if (e.key === 'Escape') {
-            document.body.removeChild(overlay);
-            document.removeEventListener('keydown', handleEscape);
-          }
-        };
-        document.addEventListener('keydown', handleEscape);
-
-        // Close on overlay click
-        overlay.onclick = (e) => {
-          if (e.target === overlay) {
-            document.body.removeChild(overlay);
-          }
-        };
-      }
-      
     } catch (error) {
       console.error('Error copying to clipboard:', error);
       alert('Error al copiar los datos al portapapeles');
