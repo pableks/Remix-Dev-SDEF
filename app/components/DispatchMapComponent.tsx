@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { SidebarTrigger } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from './ui/drawer';
-import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft, ArrowLeft, Search, MapPin, Target, ChevronDown, ChevronUp, Flame, Wind, Droplets, Zap, AlertTriangle, Navigation, Clock, MapPinIcon, Users, Phone, Shield } from 'lucide-react';
+import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft, ArrowLeft, Search, MapPin, Target, ChevronDown, ChevronUp, Flame, Wind, Droplets, Zap, AlertTriangle, Navigation, Clock, MapPinIcon, Users, Phone, Shield, Copy } from 'lucide-react';
 import Pin from './Pin';
 import { cn } from '~/lib/utils';
 import { DashboardPage } from '~/constants/routes';
@@ -438,6 +438,87 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
       setIsSubmitting(false);
     }
   }, [placemark, createPropagationCone]);
+
+  // Handle copying incident data to clipboard
+  const handleCopyIncidentData = useCallback(async () => {
+    if (!incendioData) return;
+    
+    try {
+      const formattedData = `
+🔥 REPORTE DE INCENDIO DECLARADO
+================================
+
+📍 INFORMACIÓN DEL INCENDIO
+ID: #${incendioData.incendio.id_incendio}
+Nombre: ${incendioData.incendio.nombre}
+Estado: ${incendioData.incendio.estado}
+Prioridad: ${incendioData.incendio.prioridad}
+Comuna: ${incendioData.comuna_info.nombre}
+Región: ${incendioData.comuna_info.region}
+Coordenadas: ${incendioData.coordinates.latitude.toFixed(5)}, ${incendioData.coordinates.longitude.toFixed(5)}
+Fecha: ${new Date(incendioData.incendio.created_at).toLocaleString()}
+
+🎯 ANÁLISIS GOLPE ÚNICO
+${incendioData.golpe_unico_analysis.is_golpe_unico ? '⚠️ ZONA GOLPE ÚNICO' : '✅ ZONA NORMAL'}
+${incendioData.golpe_unico_analysis.nearest_golpe_unico ? `
+Zona más cercana: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.nombre}
+Distancia: ${Math.round(incendioData.golpe_unico_analysis.nearest_golpe_unico.distance_meters)} m
+Dirección: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.cardinal_direction}
+Descripción: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.descripcion}
+Coordenadas: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.latitude.toFixed(5)}, ${incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.longitude.toFixed(5)}` : ''}
+
+🌬️ ANÁLISIS METEOROLÓGICO
+Velocidad del viento: ${incendioData.weather_analysis.current_conditions.wind_speed_kmh} km/h
+Dirección del viento: ${incendioData.weather_analysis.current_conditions.wind_direction_cardinal}
+Propagación del fuego: ${incendioData.weather_analysis.fire_propagation.direccion_aproximada}
+Nivel de riesgo: ${incendioData.weather_analysis.fire_propagation.risk_level}
+Descripción: ${incendioData.weather_analysis.fire_propagation.risk_description}
+
+💧 CUERPOS DE AGUA CERCANOS
+${incendioData.water_body_analysis.found ? `
+Nombre: ${incendioData.water_body_analysis.nearest_water_body.nombre}
+Tipo: ${incendioData.water_body_analysis.nearest_water_body.tipo}
+Distancia: ${Math.round(incendioData.water_body_analysis.nearest_water_body.distance_meters)} m
+Dirección: ${incendioData.water_body_analysis.nearest_water_body.cardinal_direction}
+Coordenadas: ${incendioData.water_body_analysis.nearest_water_body.coordinates.latitude.toFixed(5)}, ${incendioData.water_body_analysis.nearest_water_body.coordinates.longitude.toFixed(5)}` : 'No se encontraron cuerpos de agua cercanos'}
+
+⚡ LÍNEAS ELÉCTRICAS
+${incendioData.power_line_analysis.has_power_lines ? `
+Línea: ${incendioData.power_line_analysis.nearest_line.nombre}
+Tensión: ${incendioData.power_line_analysis.nearest_line.tension_kv} kV
+Distancia: ${Math.round(incendioData.power_line_analysis.nearest_line.distance_meters)} m
+Dirección: ${incendioData.power_line_analysis.nearest_line.cardinal_direction}` : 'No se detectaron líneas eléctricas cercanas'}
+
+🛣️ ANÁLISIS DE RUTAS
+${incendioData.road_analysis.found ? `
+Ruta: ${incendioData.road_analysis.nearest_road.nombre}
+Categoría: ${incendioData.road_analysis.nearest_road.categoria}
+Distancia: ${Math.round(incendioData.road_analysis.nearest_road.distance_meters)} m
+Dirección: ${incendioData.road_analysis.nearest_road.cardinal_direction}` : 'No se encontraron rutas cercanas'}
+
+🚒 BRIGADAS CERCANAS
+Total: ${incendioData.brigade_analysis.total_brigades} brigadas
+${incendioData.brigade_analysis.brigades.map((brigade: any, index: number) => `
+${index + 1}. ${brigade.nombre} (${brigade.estado})
+   - Distancia: ${brigade.distance_km} km - ${brigade.comuna}
+   - Personal: ${brigade.personal?.length || 0} personas
+   - Teléfono: ${brigade.telefono}
+   - Equipamiento: ${brigade.equipamiento ? Object.entries(brigade.equipamiento).filter(([_, value]) => value).map(([key, value]) => `${key}: ${value}`).join(', ') || 'Sin equipamiento especial' : 'Sin equipamiento especial'}`).join('')}
+
+================================
+Generado: ${new Date().toLocaleString()}
+      `.trim();
+
+      await navigator.clipboard.writeText(formattedData);
+      
+      // Show success feedback (you could replace this with a toast notification)
+      alert('Datos del incendio copiados al portapapeles');
+      
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      alert('Error al copiar los datos al portapapeles');
+    }
+  }, [incendioData]);
 
   // Layer loading functions (same as MapComponent)
   const loadLayerData = useCallback(async (layerId: string) => {
@@ -1486,13 +1567,27 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
       }}>
         <DrawerContent className="max-h-[80vh] bg-background border-border flex flex-col">
           <DrawerHeader className="border-b border-border sticky top-0 bg-background z-10">
-            <DrawerTitle className="flex items-center gap-2 text-destructive">
-              <Flame className="h-6 w-6" />
-              Incendio Declarado
-            </DrawerTitle>
-            <DrawerDescription className="text-muted-foreground">
-              Análisis espacial y datos críticos para la respuesta de emergencia
-            </DrawerDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DrawerTitle className="flex items-center gap-2 text-destructive">
+                  <Flame className="h-6 w-6" />
+                  Incendio Declarado
+                </DrawerTitle>
+                <DrawerDescription className="text-muted-foreground">
+                  Análisis espacial y datos críticos para la respuesta de emergencia
+                </DrawerDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyIncidentData}
+                className="flex items-center gap-2 bg-background hover:bg-muted"
+                title="Copiar datos del incendio al portapapeles"
+              >
+                <Copy className="h-4 w-4" />
+                Copiar Datos
+              </Button>
+            </div>
           </DrawerHeader>
           {incendioData && (
             <div className="flex-1 overflow-x-auto">
