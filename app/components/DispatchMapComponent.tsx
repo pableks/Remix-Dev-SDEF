@@ -509,10 +509,32 @@ ${index + 1}. ${brigade.nombre} (${brigade.estado})
 Generado: ${new Date().toLocaleString()}
       `.trim();
 
-      await navigator.clipboard.writeText(formattedData);
-      
-      // Show success feedback (you could replace this with a toast notification)
-      alert('Datos del incendio copiados al portapapeles');
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(formattedData);
+        alert('Datos del incendio copiados al portapapeles');
+      } else {
+        // Fallback method for older browsers or non-HTTPS environments
+        const textArea = document.createElement('textarea');
+        textArea.value = formattedData;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          alert('Datos del incendio copiados al portapapeles');
+        } catch (err) {
+          console.error('Fallback copy failed:', err);
+          // Show the data in a dialog as last resort
+          prompt('No se pudo copiar automáticamente. Selecciona y copia manualmente:', formattedData);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
       
     } catch (error) {
       console.error('Error copying to clipboard:', error);
