@@ -705,6 +705,28 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
     setHoverInfo(hoveredFeature && { feature: hoveredFeature, x, y });
   }, []);
 
+  // Handle double-click to place placemark
+  const onDoubleClick = useCallback((event: any) => {
+    if (incidentDeclared) return; // Prevent placing if incident is already declared
+    
+    // Prevent default zoom behavior
+    event.preventDefault();
+    
+    const { lngLat } = event;
+    
+    // Update placemark position
+    setPlacemark({
+      longitude: lngLat.lng,
+      latitude: lngLat.lat
+    });
+    
+    // Show tooltip with fade in animation after placement
+    setShowTooltip(false);
+    setTimeout(() => {
+      setShowTooltip(true);
+    }, 100);
+  }, [incidentDeclared]);
+
   const currentStyle = mapStyles.find(style => style.id === currentMapStyle);
   
   const mapProps = {
@@ -1123,6 +1145,8 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
         onLoad={handleMapLoad}
         interactiveLayerIds={interactiveLayerIds}
         onMouseMove={onHover}
+        onDblClick={onDoubleClick}
+        doubleClickZoom={false}
         style={{ pointerEvents: 'auto' }}
       >
         {/* Satellite Layers */}

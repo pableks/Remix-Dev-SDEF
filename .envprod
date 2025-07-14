@@ -1,0 +1,10 @@
+# Backend FastAPI URL
+BACKEND_URL=http://172.203.150.174:8000
+ 
+# Frontend configuration  
+PORT=3000
+DOMAIN=http://52.170.190.53/
+ 
+# Session configuration
+SESSION_SECRET=tu-session-secret-muy-seguro-cambia-esto-en-produccion
+SESSION_COOKIE_MAX_AGE=86400
