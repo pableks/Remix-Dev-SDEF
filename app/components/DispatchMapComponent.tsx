@@ -533,17 +533,23 @@ Generado: ${new Date().toLocaleString()}
         document.body.removeChild(textArea);
       };
 
-      // Use modern API if available (HTTPS), otherwise use fallback
-      if (navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(formattedData);
-          alert('Datos del incendio copiados al portapapeles');
-        } catch (err) {
-          console.log('Modern clipboard failed, using fallback');
-          unsecuredCopyToClipboard(formattedData);
-        }
-      } else {
+      // Use unsecured copy as default (works in HTTP), modern API as fallback for HTTPS
+      try {
         unsecuredCopyToClipboard(formattedData);
+      } catch (err) {
+        console.log('Unsecured copy failed, trying modern clipboard API');
+        if (navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(formattedData);
+            alert('Datos del incendio copiados al portapapeles');
+          } catch (clipboardErr) {
+            console.error('Both copy methods failed', err, clipboardErr);
+            alert('Error al copiar los datos al portapapeles');
+          }
+        } else {
+          console.error('No clipboard methods available');
+          alert('Error al copiar los datos al portapapeles');
+        }
       }
     } catch (error) {
       console.error('Error copying to clipboard:', error);
