@@ -287,16 +287,22 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
   // Function to create propagation cone based on weather analysis
   const createPropagationCone = useCallback((incidentData: any) => {
     console.log('createPropagationCone called with:', incidentData);
-    if (!incidentData?.weather_analysis?.found) {
-      console.log('No weather analysis found, returning null');
+    if (!incidentData?.weather_analysis?.found || !incidentData?.weather_analysis?.current_conditions) {
+      console.log('No weather analysis found or incomplete, returning null');
       return null;
     }
 
     const { current_conditions, fire_propagation } = incidentData.weather_analysis;
     // Use the actual incident coordinates, not the weather grid coordinates
     const { latitude, longitude } = incidentData.coordinates;
-    const { wind_speed_kmh, wind_direction_degrees } = current_conditions;
-    const { risk_level } = fire_propagation;
+    const { wind_speed_kmh, wind_direction_degrees } = current_conditions || {};
+    const { risk_level } = fire_propagation || {};
+
+    // Additional null checks for required fields
+    if (!wind_speed_kmh || !wind_direction_degrees || !risk_level) {
+      console.log('Missing required weather data fields, returning null');
+      return null;
+    }
 
     console.log('Weather data:', { latitude, longitude, wind_speed_kmh, wind_direction_degrees, risk_level });
 
@@ -468,11 +474,12 @@ Descripción: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.descripcio
 Coordenadas: ${incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.latitude.toFixed(5)}, ${incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.longitude.toFixed(5)}` : ''}
 
 🌬️ ANÁLISIS METEOROLÓGICO
-Velocidad del viento: ${incendioData.weather_analysis.current_conditions.wind_speed_kmh} km/h
-Dirección del viento: ${incendioData.weather_analysis.current_conditions.wind_direction_cardinal}
-Propagación del fuego: ${incendioData.weather_analysis.fire_propagation.direccion_aproximada}
-Nivel de riesgo: ${incendioData.weather_analysis.fire_propagation.risk_level}
-Descripción: ${incendioData.weather_analysis.fire_propagation.risk_description}
+${incendioData.weather_analysis?.found && incendioData.weather_analysis?.current_conditions ? `
+Velocidad del viento: ${incendioData.weather_analysis.current_conditions.wind_speed_kmh || 'N/A'} km/h
+Dirección del viento: ${incendioData.weather_analysis.current_conditions.wind_direction_cardinal || 'N/A'}
+${incendioData.weather_analysis.fire_propagation ? `Propagación del fuego: ${incendioData.weather_analysis.fire_propagation.direccion_aproximada || 'N/A'}
+Nivel de riesgo: ${incendioData.weather_analysis.fire_propagation.risk_level || 'N/A'}
+Descripción: ${incendioData.weather_analysis.fire_propagation.risk_description || 'N/A'}` : 'Datos de propagación no disponibles'}` : 'Datos meteorológicos no disponibles'}
 
 💧 CUERPOS DE AGUA CERCANOS
 ${incendioData.water_body_analysis.found ? `
@@ -520,17 +527,88 @@ Generado: ${new Date().toLocaleString()}
         textArea.style.position = 'fixed';
         textArea.style.left = '-999999px';
         textArea.style.top = '-999999px';
+        textArea.style.opacity = '0';
+        textArea.style.pointerEvents = 'none';
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
+        textArea.setSelectionRange(0, formattedData.length);
         
+        let copySuccessful = false;
         try {
-          document.execCommand('copy');
-          alert('Datos del incendio copiados al portapapeles');
+          copySuccessful = document.execCommand('copy');
+          if (copySuccessful) {
+            alert('Datos del incendio copiados al portapapeles');
+          } else {
+            throw new Error('execCommand copy failed');
+          }
         } catch (err) {
           console.error('Fallback copy failed:', err);
-          // Show the data in a dialog as last resort
-          prompt('No se pudo copiar automáticamente. Selecciona y copia manualmente:', formattedData);
+          // Show the data in a dialog as last resort and let user copy manually
+          const userCopied = confirm('No se pudo copiar automáticamente. ¿Quieres ver los datos para copiar manualmente?');
+          if (userCopied) {
+            // Create a modal-like experience
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '50%';
+            modal.style.left = '50%';
+            modal.style.transform = 'translate(-50%, -50%)';
+            modal.style.backgroundColor = 'white';
+            modal.style.border = '2px solid #333';
+            modal.style.borderRadius = '8px';
+            modal.style.padding = '20px';
+            modal.style.zIndex = '9999';
+            modal.style.maxWidth = '80vw';
+            modal.style.maxHeight = '80vh';
+            modal.style.overflow = 'auto';
+            modal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = formattedData;
+            textarea.style.width = '100%';
+            textarea.style.height = '400px';
+            textarea.style.marginBottom = '10px';
+            textarea.style.fontFamily = 'monospace';
+            textarea.style.fontSize = '12px';
+            textarea.readOnly = true;
+            
+            const button = document.createElement('button');
+            button.textContent = 'Cerrar';
+            button.style.padding = '8px 16px';
+            button.style.backgroundColor = '#007bff';
+            button.style.color = 'white';
+            button.style.border = 'none';
+            button.style.borderRadius = '4px';
+            button.style.cursor = 'pointer';
+            
+            const title = document.createElement('h3');
+            title.textContent = 'Datos del Incendio - Selecciona todo el texto y copia (Ctrl+A, Ctrl+C)';
+            title.style.marginTop = '0';
+            title.style.marginBottom = '10px';
+            title.style.color = '#333';
+            
+            modal.appendChild(title);
+            modal.appendChild(textarea);
+            modal.appendChild(button);
+            document.body.appendChild(modal);
+            
+            // Auto-select the text
+            textarea.select();
+            textarea.setSelectionRange(0, formattedData.length);
+            
+            button.onclick = () => {
+              document.body.removeChild(modal);
+            };
+            
+            // Close on escape key
+            const handleEscape = (e: KeyboardEvent) => {
+              if (e.key === 'Escape') {
+                document.body.removeChild(modal);
+                document.removeEventListener('keydown', handleEscape);
+              }
+            };
+            document.addEventListener('keydown', handleEscape);
+          }
         } finally {
           document.body.removeChild(textArea);
         }
@@ -1759,35 +1837,49 @@ Generado: ${new Date().toLocaleString()}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-muted-foreground">Velocidad del Viento:</span>
-                      <span className="text-foreground">{incendioData.weather_analysis.current_conditions.wind_speed_kmh} km/h</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-muted-foreground">Dirección:</span>
-                      <span className="flex items-center gap-1 text-foreground">
-                        <Navigation className="h-4 w-4" />
-                        {incendioData.weather_analysis.current_conditions.wind_direction_cardinal}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-muted-foreground">Propagación:</span>
-                      <span className="text-foreground">{incendioData.weather_analysis.fire_propagation.direccion_aproximada}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-muted-foreground">Nivel de Riesgo:</span>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-xs font-medium",
-                        incendioData.weather_analysis.fire_propagation.risk_level === 'ALTO' ? 'bg-destructive/20 text-destructive' :
-                        incendioData.weather_analysis.fire_propagation.risk_level === 'MEDIO' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' :
-                        'bg-green-500/20 text-green-600 dark:text-green-400'
-                      )}>
-                        {incendioData.weather_analysis.fire_propagation.risk_level}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-2 p-2 bg-muted/20 rounded">
-                      {incendioData.weather_analysis.fire_propagation.risk_description}
-                    </div>
+                    {incendioData.weather_analysis?.found && incendioData.weather_analysis?.current_conditions ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="font-medium text-muted-foreground">Velocidad del Viento:</span>
+                          <span className="text-foreground">{incendioData.weather_analysis.current_conditions.wind_speed_kmh || 'N/A'} km/h</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="font-medium text-muted-foreground">Dirección:</span>
+                          <span className="flex items-center gap-1 text-foreground">
+                            <Navigation className="h-4 w-4" />
+                            {incendioData.weather_analysis.current_conditions.wind_direction_cardinal || 'N/A'}
+                          </span>
+                        </div>
+                        {incendioData.weather_analysis.fire_propagation && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-muted-foreground">Propagación:</span>
+                              <span className="text-foreground">{incendioData.weather_analysis.fire_propagation.direccion_aproximada || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-muted-foreground">Nivel de Riesgo:</span>
+                              <span className={cn(
+                                "px-2 py-1 rounded text-xs font-medium",
+                                incendioData.weather_analysis.fire_propagation.risk_level === 'ALTO' ? 'bg-destructive/20 text-destructive' :
+                                incendioData.weather_analysis.fire_propagation.risk_level === 'MEDIO' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' :
+                                'bg-green-500/20 text-green-600 dark:text-green-400'
+                              )}>
+                                {incendioData.weather_analysis.fire_propagation.risk_level || 'N/A'}
+                              </span>
+                            </div>
+                            {incendioData.weather_analysis.fire_propagation.risk_description && (
+                              <div className="text-sm text-muted-foreground mt-2 p-2 bg-muted/20 rounded">
+                                {incendioData.weather_analysis.fire_propagation.risk_description}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground text-center py-4">
+                        Datos meteorológicos no disponibles
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 {/* Water Body Analysis */}
