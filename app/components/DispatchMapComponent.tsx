@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { SidebarTrigger } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from './ui/drawer';
-import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft, ArrowLeft, Search, MapPin, Target, ChevronDown, ChevronUp, Flame, Wind, Droplets, Zap, AlertTriangle, Navigation, Clock, MapPinIcon } from 'lucide-react';
+import { Satellite, Map as MapIcon, Globe, Mountain, MountainSnow, CloudSun, Sun, LayoutPanelLeft, ArrowLeft, Search, MapPin, Target, ChevronDown, ChevronUp, Flame, Wind, Droplets, Zap, AlertTriangle, Navigation, Clock, MapPinIcon, Users, Phone, Shield } from 'lucide-react';
 import Pin from './Pin';
 import { cn } from '~/lib/utils';
 import { DashboardPage } from '~/constants/routes';
@@ -96,6 +96,33 @@ const getWaterDisplayName = (feature: any): string => {
   return name;
 };
 
+// Helper function to get display name for any feature type
+const getFeatureDisplayName = (feature: any): string => {
+  // Try common name properties first
+  const name = feature.properties?.name || 
+               feature.properties?.Name || 
+               feature.properties?.NOMBRE ||
+               feature.properties?.nombre;
+  
+  if (name && name.trim() !== '') {
+    return name;
+  }
+  
+  // For water bodies, use specific logic
+  if (feature.properties?.TIPO_MAGUA) {
+    return getWaterDisplayName(feature);
+  }
+  
+  // For other features, try to identify the type
+  const sourceLayer = feature.properties?.source_layer;
+  if (sourceLayer) {
+    return `${sourceLayer} feature`;
+  }
+  
+  // Generic fallback
+  return `${feature.geometry.type} feature`;
+};
+
 // Helper function to get road type display name
 const getRoadTypeDisplayName = (sourceLayer: string): string => {
   switch (sourceLayer) {
@@ -150,6 +177,9 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Brigade expansion state
+  const [expandedBrigades, setExpandedBrigades] = useState(false);
   
   const [events, logEvents] = useState<Record<string, LngLat>>({});
   const [currentMapStyle, setCurrentMapStyle] = useState<MapStyle>('dark');
@@ -265,13 +295,13 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
     const { current_conditions, fire_propagation } = incidentData.weather_analysis;
     // Use the actual incident coordinates, not the weather grid coordinates
     const { latitude, longitude } = incidentData.coordinates;
-    const { wind_speed_ms, wind_direction_degrees } = current_conditions;
+    const { wind_speed_kmh, wind_direction_degrees } = current_conditions;
     const { risk_level } = fire_propagation;
 
-    console.log('Weather data:', { latitude, longitude, wind_speed_ms, wind_direction_degrees, risk_level });
+    console.log('Weather data:', { latitude, longitude, wind_speed_kmh, wind_direction_degrees, risk_level });
 
     // Calculate cone parameters based on wind speed and risk level
-    const baseRadius = Math.max(wind_speed_ms * 200, 100); // Base radius in meters
+    const baseRadius = Math.max(wind_speed_kmh * 55, 100); // Base radius in meters (adjusted for km/h)
     const riskMultiplier = risk_level === 'ALTO' ? 2 : risk_level === 'MEDIO' ? 1.5 : 1;
     const coneRadius = baseRadius * riskMultiplier;
     const coneLength = coneRadius * 2; // Cone length
@@ -341,7 +371,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
       type: 'Feature',
       properties: {
         type: 'fire_propagation_cone',
-        wind_speed: wind_speed_ms,
+        wind_speed: wind_speed_kmh,
         wind_direction: wind_direction_degrees,
         risk_level: risk_level,
         propagation_direction: fire_propagation.direccion_aproximada
@@ -366,7 +396,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://172.203.150.174:8100/incendios/declarar', {
+      const response = await fetch('http://localhost:8100/incendios/declarar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -384,6 +414,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
 
       const data = await response.json();
       console.log('Incident API response:', data);
+      console.log('Brigade analysis data:', data.brigade_analysis);
       setIncendioData(data);
       setIncidentDeclared(true);
       
@@ -903,6 +934,11 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
     console.log('incidentDeclared state changed:', incidentDeclared);
   }, [incidentDeclared]);
 
+  // Debug output for expandedBrigades
+  useEffect(() => {
+    console.log('expandedBrigades state changed:', expandedBrigades);
+  }, [expandedBrigades]);
+
   return (
     <div className="h-screen w-full relative" style={{ pointerEvents: 'auto' }}>
       {/* Sidebar Controls */}
@@ -1129,6 +1165,14 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
         <div><strong>incidentDeclared:</strong> {String(incidentDeclared)}</div>
         <div><strong>propagationCone:</strong> {propagationCone ? 'Set' : 'Null'}</div>
         <div><strong>isSubmitting:</strong> {String(isSubmitting)}</div>
+        <div><strong>expandedBrigades:</strong> {String(expandedBrigades)}</div>
+        {incendioData && (
+          <>
+            <div><strong>Brigade Analysis Found:</strong> {String(incendioData.brigade_analysis?.found)}</div>
+            <div><strong>Total Brigades:</strong> {incendioData.brigade_analysis?.total_brigades || 0}</div>
+            <div><strong>Brigades Array Length:</strong> {incendioData.brigade_analysis?.brigades?.length || 0}</div>
+          </>
+        )}
         {propagationCone && (
           <div className="mt-2">
             <div><strong>Cone features:</strong> {propagationCone.features?.length || 0}</div>
@@ -1353,7 +1397,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
           <div><strong>Name:</strong> {
             hoverInfo.feature.properties.name || 
             hoverInfo.feature.properties.Name || 
-            getWaterDisplayName(hoverInfo.feature)
+            getFeatureDisplayName(hoverInfo.feature)
           }</div>
           <div><strong>Type:</strong> {hoverInfo.feature.geometry.type}</div>
           
@@ -1453,7 +1497,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
           {incendioData && (
             <div className="flex-1 overflow-x-auto">
               <div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 min-w-[900px] p-2"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 min-w-[1400px] p-2"
                 style={{ alignItems: 'stretch' }}
               >
                 {/* Incident Info */}
@@ -1548,6 +1592,45 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
                         </div>
                       </div>
                     )}
+                    {incendioData.golpe_unico_analysis.nearest_golpe_unico && (
+                      <div className="mt-3 space-y-2">
+                        <div className="text-sm font-medium text-foreground">
+                          {incendioData.golpe_unico_analysis.is_golpe_unico ? 'Zona Actual:' : 'Zona Golpe Único Más Cercana:'}
+                        </div>
+                        <div className="p-2 bg-purple-500/10 rounded border border-purple-500/20">
+                          <div className="text-sm font-medium text-foreground mb-1">
+                            {incendioData.golpe_unico_analysis.nearest_golpe_unico.nombre}
+                          </div>
+                          <div className="space-y-1 mb-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Distancia:</span>
+                              <span className="text-foreground">{Math.round(incendioData.golpe_unico_analysis.nearest_golpe_unico.distance_meters)} m</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Dirección:</span>
+                              <span className="flex items-center gap-1 text-foreground">
+                                <Navigation className="h-3 w-3" />
+                                {incendioData.golpe_unico_analysis.nearest_golpe_unico.cardinal_direction}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mb-2">
+                            {incendioData.golpe_unico_analysis.nearest_golpe_unico.descripcion}
+                          </div>
+                          <div className="space-y-1">
+                            {incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates && (
+                              <div className="mt-2 pt-2 border-t border-purple-500/20">
+                                <div className="text-xs font-medium text-foreground mb-1">Coordenadas:</div>
+                                <div className="text-xs text-muted-foreground">
+                                  <div>Lat: {incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.latitude.toFixed(5)}</div>
+                                  <div>Lng: {incendioData.golpe_unico_analysis.nearest_golpe_unico.coordinates.longitude.toFixed(5)}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 {/* Weather Analysis */}
@@ -1561,7 +1644,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
                   <CardContent className="space-y-3">
                     <div className="flex justify-between">
                       <span className="font-medium text-muted-foreground">Velocidad del Viento:</span>
-                      <span className="text-foreground">{incendioData.weather_analysis.current_conditions.wind_speed_ms} m/s</span>
+                      <span className="text-foreground">{incendioData.weather_analysis.current_conditions.wind_speed_kmh} km/h</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium text-muted-foreground">Dirección:</span>
@@ -1620,6 +1703,15 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
                             {incendioData.water_body_analysis.nearest_water_body.cardinal_direction}
                           </span>
                         </div>
+                        {incendioData.water_body_analysis.nearest_water_body.coordinates && (
+                          <div className="mt-2 p-2 bg-cyan-500/10 rounded border border-cyan-500/20">
+                            <div className="text-xs font-medium text-foreground mb-1">Coordenadas:</div>
+                            <div className="text-xs text-muted-foreground">
+                              <div>Lat: {incendioData.water_body_analysis.nearest_water_body.coordinates.latitude.toFixed(5)}</div>
+                              <div>Lng: {incendioData.water_body_analysis.nearest_water_body.coordinates.longitude.toFixed(5)}</div>
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="text-muted-foreground text-center py-4">
@@ -1706,6 +1798,110 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
                     ) : (
                       <div className="text-muted-foreground text-center py-4">
                         No se encontraron rutas cercanas
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                {/* Brigade Analysis */}
+                <Card className="border-green-500/20 bg-green-500/5 flex flex-col h-full min-w-[260px] max-h-[340px] overflow-y-auto">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                      <Shield className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      Brigadas Cercanas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {incendioData.brigade_analysis.found ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="font-medium text-muted-foreground">Total Brigadas:</span>
+                          <span className="text-foreground">{incendioData.brigade_analysis.total_brigades}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {(expandedBrigades ? incendioData.brigade_analysis.brigades : incendioData.brigade_analysis.brigades.slice(0, 2)).map((brigade: any, index: number) => (
+                            <div key={index} className="p-2 bg-muted/20 rounded-lg border border-green-500/20">
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="font-medium text-sm text-foreground">{brigade.nombre}</span>
+                                <span className={cn(
+                                  "px-2 py-1 rounded text-xs font-medium",
+                                  brigade.estado === 'ACTIVO' ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                                )}>
+                                  {brigade.estado}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <MapPinIcon className="h-3 w-3" />
+                                  {brigade.distance_km} km - {brigade.comuna}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {brigade.personal?.length || 0} personas
+                                </div>
+                                {brigade.equipamiento && (
+                                  <div className="text-xs">
+                                    {brigade.equipamiento.motobomba && <span className="mr-2">🔧 Motobomba</span>}
+                                    {brigade.equipamiento.motosierra && <span className="mr-2">⚙️ Motosierra</span>}
+                                    {brigade.equipamiento.helitransporte && <span className="mr-2">🚁 {brigade.equipamiento.helitransporte}</span>}
+                                  </div>
+                                )}
+                                {expandedBrigades && (
+                                  <div className="mt-2 pt-2 border-t border-green-500/20">
+                                    <div className="text-xs font-medium text-foreground mb-1">Personal:</div>
+                                    {brigade.personal?.map((person: any, personIndex: number) => (
+                                      <div key={personIndex} className="flex items-center justify-between text-xs mb-1">
+                                        <span className="text-foreground">{person.code}: {person.name}</span>
+                                        <a 
+                                          href={`tel:${person.phone}`}
+                                          className="text-green-600 dark:text-green-400 hover:underline flex items-center gap-1"
+                                        >
+                                          <Phone className="h-3 w-3" />
+                                          {person.phone}
+                                        </a>
+                                      </div>
+                                    )) || <div className="text-xs text-muted-foreground">Sin personal asignado</div>}
+                                    {brigade.telefono && (
+                                      <div className="mt-2 pt-2 border-t border-green-500/20">
+                                        <div className="text-xs font-medium text-foreground mb-1">Teléfono Principal:</div>
+                                        <a 
+                                          href={`tel:${brigade.telefono.split(',')[0].trim()}`}
+                                          className="text-green-600 dark:text-green-400 hover:underline flex items-center gap-1 text-xs"
+                                        >
+                                          <Phone className="h-3 w-3" />
+                                          {brigade.telefono.split(',')[0].trim()}
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {incendioData.brigade_analysis.total_brigades > 2 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setExpandedBrigades(!expandedBrigades)}
+                              className="w-full h-8 text-xs bg-green-500/10 hover:bg-green-500/20 border-green-500/30 text-green-700 dark:text-green-300"
+                            >
+                              {expandedBrigades ? (
+                                <>
+                                  <ChevronUp className="h-3 w-3 mr-1" />
+                                  Mostrar menos
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3 w-3 mr-1" />
+                                  +{incendioData.brigade_analysis.total_brigades - 2} brigadas más
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground text-center py-4">
+                        No se encontraron brigadas cercanas
                       </div>
                     )}
                   </CardContent>
