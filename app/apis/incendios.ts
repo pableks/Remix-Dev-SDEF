@@ -5,8 +5,51 @@ import { IIncendio, IIncendioStats, IIncendioFilters } from "~/interfaces/incend
 // Create a separate API instance for incendios since it's on a different port
 import axios from "axios";
 
+// Helper functions to transform backend data to frontend interface
+const transformBackendStatus = (backendStatus: string): 'activo' | 'controlado' | 'extinguido' | 'cancelado' => {
+  const statusMap: { [key: string]: 'activo' | 'controlado' | 'extinguido' | 'cancelado' } = {
+    'DECLARADO': 'activo',
+    'EN_COMBATE': 'activo',
+    'CONTROLADO': 'controlado',
+    'EXTINGUIDO': 'extinguido',
+    'CANCELADO': 'cancelado'
+  };
+  return statusMap[backendStatus?.toUpperCase()] || 'activo';
+};
+
+const transformBackendPriority = (backendPriority: string): 'baja' | 'media' | 'alta' | 'critica' => {
+  const priorityMap: { [key: string]: 'baja' | 'media' | 'alta' | 'critica' } = {
+    'BAJA': 'baja',
+    'MEDIA': 'media',
+    'ALTA': 'alta',
+    'CRITICA': 'critica'
+  };
+  return priorityMap[backendPriority?.toUpperCase()] || 'media';
+};
+
+// Helper functions to transform frontend data to backend format
+const transformFrontendStatus = (frontendStatus: string): string => {
+  const statusMap: { [key: string]: string } = {
+    'activo': 'DECLARADO',
+    'controlado': 'CONTROLADO',
+    'extinguido': 'EXTINGUIDO',
+    'cancelado': 'CANCELADO'
+  };
+  return statusMap[frontendStatus?.toLowerCase()] || 'DECLARADO';
+};
+
+const transformFrontendPriority = (frontendPriority: string): string => {
+  const priorityMap: { [key: string]: string } = {
+    'baja': 'BAJA',
+    'media': 'MEDIA',
+    'alta': 'ALTA',
+    'critica': 'CRITICA'
+  };
+  return priorityMap[frontendPriority?.toLowerCase()] || 'MEDIA';
+};
+
 const INCENDIOS_API = axios.create({
-  baseURL: process.env.NODE_ENV === "production" ? "/incendios" : "http://localhost:8100/incendios",
+  baseURL: process.env.NODE_ENV === "production" ? "/incendios" : "http://172.203.150.174:8100",
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -32,7 +75,7 @@ export const getIncendios = async (filters?: IIncendioFilters, accessToken?: str
   if (filters?.limit) params.append('limit', filters.limit.toString());
 
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  const response = await INCENDIOS_API.get(`/?${params.toString()}`, { headers });
+  const response = await INCENDIOS_API.get(`/incendios?${params.toString()}`, { headers });
   
   // Transform the response to match our interface
   const transformedData = response.data.map((item: any) => ({
@@ -43,8 +86,8 @@ export const getIncendios = async (filters?: IIncendioFilters, accessToken?: str
     longitud: item.longitude,
     fecha_deteccion: item.created_at || new Date().toISOString(),
     fecha_declaracion: item.created_at || new Date().toISOString(),
-    estado: item.estado?.toLowerCase() === 'declarado' ? 'activo' : item.estado?.toLowerCase() || 'activo',
-    prioridad: item.prioridad?.toLowerCase() || 'media',
+    estado: transformBackendStatus(item.estado),
+    prioridad: transformBackendPriority(item.prioridad),
     superficie_afectada: item.superficie_afectada || null,
     causa: item.causa || null,
     recursos_asignados: item.recursos_asignados || [],
@@ -64,7 +107,7 @@ export const getIncendios = async (filters?: IIncendioFilters, accessToken?: str
 // GET single incendio by ID
 export const getIncendio = async (id: number, accessToken?: string): Promise<IIncendio> => {
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  const response = await INCENDIOS_API.get(`/${id}`, { headers });
+  const response = await INCENDIOS_API.get(`/incendios/${id}`, { headers });
   
   const item = response.data;
   return {
@@ -75,8 +118,8 @@ export const getIncendio = async (id: number, accessToken?: string): Promise<IIn
     longitud: item.longitude,
     fecha_deteccion: item.created_at || new Date().toISOString(),
     fecha_declaracion: item.created_at || new Date().toISOString(),
-    estado: item.estado?.toLowerCase() === 'declarado' ? 'activo' : item.estado?.toLowerCase() || 'activo',
-    prioridad: item.prioridad?.toLowerCase() || 'media',
+    estado: transformBackendStatus(item.estado),
+    prioridad: transformBackendPriority(item.prioridad),
     superficie_afectada: item.superficie_afectada || null,
     causa: item.causa || null,
     recursos_asignados: item.recursos_asignados || [],
@@ -94,14 +137,14 @@ export const createIncendio = async (data: any, accessToken?: string): Promise<I
     descripcion: data.descripcion,
     latitude: data.latitud,
     longitude: data.longitud,
-    estado: data.estado?.toUpperCase() || 'DECLARADO',
-    prioridad: data.prioridad?.toUpperCase() || 'MEDIA',
+    estado: transformFrontendStatus(data.estado),
+    prioridad: transformFrontendPriority(data.prioridad),
     superficie_afectada: data.superficie_afectada,
     causa: data.causa,
     observaciones: data.observaciones,
   };
   
-  const response = await INCENDIOS_API.post('/', payload, { headers });
+  const response = await INCENDIOS_API.post('/incendios', payload, { headers });
   return getIncendio(response.data.id_incendio, accessToken);
 };
 
@@ -123,10 +166,10 @@ export const declareIncendio = async (data: {
     descripcion: data.descripcion,
     latitude: data.latitud,
     longitude: data.longitud,
-    prioridad: data.prioridad.toUpperCase(),
+    prioridad: transformFrontendPriority(data.prioridad),
   };
   
-  const response = await INCENDIOS_API.post('/declarar', payload, { headers });
+  const response = await INCENDIOS_API.post('/incendios/declarar', payload, { headers });
   const incendio = await getIncendio(response.data.id_incendio, accessToken);
   
   return {
@@ -144,42 +187,42 @@ export const updateIncendio = async (id: number, data: any, accessToken?: string
     descripcion: data.descripcion,
     latitude: data.latitud,
     longitude: data.longitud,
-    estado: data.estado?.toUpperCase(),
-    prioridad: data.prioridad?.toUpperCase(),
+    estado: data.estado ? transformFrontendStatus(data.estado) : undefined,
+    prioridad: data.prioridad ? transformFrontendPriority(data.prioridad) : undefined,
     superficie_afectada: data.superficie_afectada,
     causa: data.causa,
     observaciones: data.observaciones,
   };
   
-  await INCENDIOS_API.put(`/${id}`, payload, { headers });
+  await INCENDIOS_API.put(`/incendios/${id}`, payload, { headers });
   return getIncendio(id, accessToken);
 };
 
 // PATCH update incendio status only
 export const updateIncendioStatus = async (id: number, estado: string, accessToken?: string): Promise<IIncendio> => {
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  await INCENDIOS_API.patch(`/${id}/estado`, { estado: estado.toUpperCase() }, { headers });
+  await INCENDIOS_API.patch(`/incendios/${id}/estado?nuevo_estado=${transformFrontendStatus(estado)}`, {}, { headers });
   return getIncendio(id, accessToken);
 };
 
 // PATCH update incendio priority only
 export const updateIncendioPriority = async (id: number, prioridad: string, accessToken?: string): Promise<IIncendio> => {
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  await INCENDIOS_API.patch(`/${id}/prioridad`, { prioridad: prioridad.toUpperCase() }, { headers });
+  await INCENDIOS_API.patch(`/incendios/${id}/prioridad?nueva_prioridad=${transformFrontendPriority(prioridad)}`, {}, { headers });
   return getIncendio(id, accessToken);
 };
 
 // DELETE incendio (soft delete)
 export const deleteIncendio = async (id: number, accessToken?: string): Promise<{ message: string }> => {
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  const response = await INCENDIOS_API.delete(`/${id}`, { headers });
+  const response = await INCENDIOS_API.delete(`/incendios/${id}`, { headers });
   return response.data;
 };
 
 // DELETE incendio permanently (hard delete)
 export const hardDeleteIncendio = async (id: number, accessToken?: string): Promise<{ message: string }> => {
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  const response = await INCENDIOS_API.delete(`/${id}/hard`, { headers });
+  const response = await INCENDIOS_API.delete(`/incendios/${id}/hard`, { headers });
   return response.data;
 };
 
@@ -188,7 +231,7 @@ export const getIncendiosStats = async (accessToken?: string): Promise<IIncendio
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   
   try {
-    const response = await INCENDIOS_API.get('/estadisticas/resumen', { headers });
+    const response = await INCENDIOS_API.get('/incendios/estadisticas/resumen', { headers });
     return response.data;
   } catch (error) {
     // If stats endpoint doesn't exist, calculate from incendios list
@@ -224,7 +267,7 @@ export const getActiveIncendios = async (accessToken?: string): Promise<{
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   
   try {
-    const response = await INCENDIOS_API.get('/activos/resumen', { headers });
+    const response = await INCENDIOS_API.get('/incendios/activos/resumen', { headers });
     return response.data;
   } catch (error) {
     // If endpoint doesn't exist, calculate from incendios list
@@ -254,10 +297,9 @@ export const bulkUpdateIncendiosStatus = async (ids: number[], estado: string, a
   const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   
   try {
-    const response = await INCENDIOS_API.post('/bulk/update-estado', { 
+    const response = await INCENDIOS_API.post(`/incendios/bulk/update-estado?nuevo_estado=${transformFrontendStatus(estado)}`, 
       ids, 
-      estado: estado.toUpperCase() 
-    }, { headers });
+      { headers });
     return response.data;
   } catch (error) {
     // If bulk endpoint doesn't exist, update individually
@@ -290,7 +332,7 @@ export const exportIncendiosCSV = async (filters?: IIncendioFilters, accessToken
     if (filters?.fecha_hasta) params.append('fecha_hasta', filters.fecha_hasta);
     if (filters?.search) params.append('search', filters.search);
 
-    const response = await INCENDIOS_API.get(`/export/csv?${params.toString()}`, {
+    const response = await INCENDIOS_API.get(`/incendios/export/csv?${params.toString()}`, {
       headers,
       responseType: 'blob'
     });

@@ -68,6 +68,16 @@ const IncendiosDashboard: React.FC<IncendiosDashboardProps> = ({
   isInsetVariant,
   setIsInsetVariant,
 }) => {
+  // Ensure stats has default values if undefined
+  const safeStats = {
+    total_incendios: stats?.total_incendios || 0,
+    activos: stats?.activos || 0,
+    controlados: stats?.controlados || 0,
+    extinguidos: stats?.extinguidos || 0,
+    cancelados: stats?.cancelados || 0,
+    superficie_total_afectada: stats?.superficie_total_afectada || 0,
+    por_prioridad: stats?.por_prioridad || { baja: 0, media: 0, alta: 0, critica: 0 }
+  };
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedIncendios, setSelectedIncendios] = useState<number[]>([]);
@@ -165,35 +175,35 @@ const IncendiosDashboard: React.FC<IncendiosDashboardProps> = ({
   const statsCards = [
     {
       title: 'Total Incendios',
-      value: stats.total_incendios,
+      value: safeStats.total_incendios,
       icon: Flame,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
     },
     {
       title: 'Activos',
-      value: stats.activos,
+      value: safeStats.activos,
       icon: AlertTriangle,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
     },
     {
       title: 'Controlados',
-      value: stats.controlados,
+      value: safeStats.controlados,
       icon: Clock,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
     },
     {
       title: 'Extinguidos',
-      value: stats.extinguidos,
+      value: safeStats.extinguidos,
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
       title: 'Superficie Total',
-      value: `${stats.superficie_total_afectada?.toFixed(1) || 0} ha`,
+      value: `${safeStats.superficie_total_afectada?.toFixed(1) || 0} ha`,
       icon: Target,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
@@ -291,7 +301,7 @@ const IncendiosDashboard: React.FC<IncendiosDashboardProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(stats.por_prioridad).map(([priority, count]) => (
+                  {Object.entries(safeStats.por_prioridad).map(([priority, count]) => (
                     <div key={priority} className="text-center">
                       <div className={`h-16 w-16 rounded-full ${priorityConfig[priority as keyof typeof priorityConfig].color} mx-auto mb-2 flex items-center justify-center`}>
                         <span className="text-white font-bold text-xl">{count}</span>
@@ -686,8 +696,8 @@ const CreateIncendioForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     latitud: '',
     longitud: '',
     fecha_deteccion: new Date().toISOString().slice(0, 16),
-    estado: 'activo',
-    prioridad: 'media',
+    estado: 'activo' as 'activo' | 'controlado' | 'extinguido' | 'cancelado',
+    prioridad: 'media' as 'baja' | 'media' | 'alta' | 'critica',
     superficie_afectada: '',
     causa: '',
     observaciones: '',
