@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: sdef-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DOMAIN=sdef.site
+      - BACKEND_URL=http://172.203.150.174:8000
+      - SESSION_SECRET=tu-session-secret-muy-seguro-cambia-esto-en-produccion
+      - SESSION_COOKIE_MAX_AGE=86400
+    networks:
+      - app-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: sdef-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
+
+networks:
+  app-network:
+    driver: bridge 
