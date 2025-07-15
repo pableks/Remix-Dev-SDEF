@@ -1,7 +1,19 @@
 sdef.site {
     # Automatic HTTPS with Let's Encrypt
     
-    # Reverse proxy to your Remix app
+    # Proxy backend API requests to avoid mixed content issues
+    handle /api/* {
+        # Remove /api prefix and proxy to backend
+        uri strip_prefix /api
+        reverse_proxy http://172.203.150.174:8000
+    }
+    
+    # Proxy incident API requests
+    handle /incendios/* {
+        reverse_proxy http://172.203.150.174:8100
+    }
+    
+    # Reverse proxy to your Remix app (default handler)
     reverse_proxy app:3000
     
     # Enable compression
@@ -24,8 +36,8 @@ sdef.site {
         # Referrer policy
         Referrer-Policy "strict-origin-when-cross-origin"
         
-        # Content Security Policy (adjusted for MapLibre GL JS and backend API)
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https: http://172.203.150.174:8000 http://172.203.150.174:8100; frame-src 'self'; worker-src 'self' blob:; child-src 'self' blob:"
+        # Content Security Policy (adjusted for MapLibre GL JS with proxied backend)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-src 'self'; worker-src 'self' blob:; child-src 'self' blob:"
     }
     
     # Logging

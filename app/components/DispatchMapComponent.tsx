@@ -585,7 +585,7 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://172.203.150.174:8100/incendios/declarar', {
+      const response = await fetch('/incendios/declarar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
