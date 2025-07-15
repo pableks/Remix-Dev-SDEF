@@ -151,6 +151,189 @@ export default function DispatchMapComponent({ isInsetVariant, setIsInsetVariant
   const mapRef = useRef<MapRef>(null);
   const navigate = useNavigate();
   
+  // Custom hook for clipboard functionality
+  const useCopyToClipboard = useCallback((resetInterval = 2000) => {
+    const [isCopied, setIsCopied] = useState(false);
+
+    const copy = useCallback(async (text: string) => {
+      if (!text) return false;
+
+      let success = false;
+
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          success = true;
+          console.log('Modern clipboard API succeeded');
+        } catch (err) {
+          console.warn("Clipboard API failed:", err);
+        }
+      }
+
+      // Fallback for insecure contexts
+      if (!success) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        try {
+          success = document.execCommand("copy");
+          console.log('execCommand result:', success);
+          
+          // Additional verification - try to read selection
+          const selection = window.getSelection();
+          if (selection && selection.toString() === text) {
+            console.log('Selection verification passed');
+          } else {
+            console.log('Selection verification failed');
+            success = false;
+          }
+        } catch (err) {
+          console.error("Fallback copy failed:", err);
+          success = false;
+        } finally {
+          document.body.removeChild(textarea);
+        }
+      }
+
+      setIsCopied(success);
+      if (success && resetInterval > 0) {
+        setTimeout(() => setIsCopied(false), resetInterval);
+      }
+
+      return success;
+    }, [resetInterval]);
+
+    return { copy, isCopied };
+  }, []);
+
+  const { copy: copyToClipboard, isCopied } = useCopyToClipboard();
+  
+  // Modal fallback for manual copy
+  const showCopyModal = useCallback((text: string) => {
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Copiar Datos del Incendio';
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333; text-align: center;';
+
+    const instructions = document.createElement('p');
+    instructions.innerHTML = 'Selecciona todo el texto y copia con <strong>Ctrl+C</strong> (o Cmd+C en Mac):';
+    instructions.style.cssText = 'margin-bottom: 15px; color: #666; text-align: center;';
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.cssText = `
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      font-size: 12px;
+      border: 2px solid #007bff;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 15px;
+      resize: vertical;
+    `;
+    textarea.readOnly = true;
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'text-align: center;';
+
+    const selectButton = document.createElement('button');
+    selectButton.textContent = 'Seleccionar Todo';
+    selectButton.style.cssText = `
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    `;
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Cerrar';
+    closeButton.style.cssText = `
+      padding: 10px 20px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    `;
+
+    // Event handlers
+    selectButton.onclick = () => {
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+    };
+
+    closeButton.onclick = () => {
+      document.body.removeChild(overlay);
+    };
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+      }
+    };
+
+    document.addEventListener('keydown', function escapeHandler(e) {
+      if (e.key === 'Escape') {
+        document.body.removeChild(overlay);
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    });
+
+    // Assemble modal
+    buttonContainer.appendChild(selectButton);
+    buttonContainer.appendChild(closeButton);
+    modal.appendChild(title);
+    modal.appendChild(instructions);
+    modal.appendChild(textarea);
+    modal.appendChild(buttonContainer);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Auto-select text
+    setTimeout(() => {
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+    }, 100);
+  }, []);
+  
   // Placemark state
   const [placemark, setPlacemark] = useState({
     latitude: -33.0472,
@@ -516,178 +699,22 @@ ${index + 1}. ${brigade.nombre} (${brigade.estado})
 Generado: ${new Date().toLocaleString()}
       `.trim();
 
-      // Enhanced clipboard solution with multiple fallbacks for HTTP environments
-      const unsecuredCopyToClipboard = (text: string): boolean => {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '-9999px';
-        textArea.style.opacity = '0';
-        document.body.appendChild(textArea);
-        
-        let success = false;
-        try {
-          textArea.focus();
-          textArea.select();
-          success = document.execCommand('copy');
-          console.log('execCommand copy result:', success);
-        } catch (err) {
-          console.error('execCommand copy failed:', err);
-        }
-        
-        document.body.removeChild(textArea);
-        return success;
-      };
-
-      const showCopyModal = (text: string) => {
-        // Create modal overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(0,0,0,0.8);
-          z-index: 10000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        `;
-
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-          background: white;
-          border-radius: 8px;
-          padding: 20px;
-          max-width: 90vw;
-          max-height: 90vh;
-          overflow: auto;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        `;
-
-        const title = document.createElement('h3');
-        title.textContent = 'Copiar Datos del Incendio';
-        title.style.cssText = 'margin: 0 0 15px 0; color: #333; text-align: center;';
-
-        const instructions = document.createElement('p');
-        instructions.innerHTML = 'Selecciona todo el texto y copia con <strong>Ctrl+C</strong> (o Cmd+C en Mac):';
-        instructions.style.cssText = 'margin-bottom: 15px; color: #666; text-align: center;';
-
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.cssText = `
-          width: 100%;
-          height: 300px;
-          font-family: monospace;
-          font-size: 12px;
-          border: 2px solid #007bff;
-          border-radius: 4px;
-          padding: 10px;
-          margin-bottom: 15px;
-          resize: vertical;
-        `;
-        textarea.readOnly = true;
-
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'text-align: center;';
-
-        const selectButton = document.createElement('button');
-        selectButton.textContent = 'Seleccionar Todo';
-        selectButton.style.cssText = `
-          padding: 10px 20px;
-          background: #007bff;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          margin-right: 10px;
-        `;
-
-        const closeButton = document.createElement('button');
-        closeButton.textContent = 'Cerrar';
-        closeButton.style.cssText = `
-          padding: 10px 20px;
-          background: #6c757d;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        `;
-
-        // Event handlers
-        selectButton.onclick = () => {
-          textarea.focus();
-          textarea.select();
-          textarea.setSelectionRange(0, textarea.value.length);
-        };
-
-        closeButton.onclick = () => {
-          document.body.removeChild(overlay);
-        };
-
-        overlay.onclick = (e) => {
-          if (e.target === overlay) {
-            document.body.removeChild(overlay);
-          }
-        };
-
-        document.addEventListener('keydown', function escapeHandler(e) {
-          if (e.key === 'Escape') {
-            document.body.removeChild(overlay);
-            document.removeEventListener('keydown', escapeHandler);
-          }
-        });
-
-        // Assemble modal
-        buttonContainer.appendChild(selectButton);
-        buttonContainer.appendChild(closeButton);
-        modal.appendChild(title);
-        modal.appendChild(instructions);
-        modal.appendChild(textarea);
-        modal.appendChild(buttonContainer);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-
-        // Auto-select text
-        setTimeout(() => {
-          textarea.focus();
-          textarea.select();
-          textarea.setSelectionRange(0, textarea.value.length);
-        }, 100);
-      };
-
-      // Try multiple methods in order
       console.log('Attempting to copy incident data...');
+      const success = await copyToClipboard(formattedData);
       
-      // Method 1: Try modern clipboard API first (might work in some HTTP contexts)
-      if (navigator.clipboard && window.isSecureContext) {
-        try {
-          console.log('Trying modern clipboard API...');
-          await navigator.clipboard.writeText(formattedData);
-          alert('Datos del incendio copiados al portapapeles');
-          return;
-        } catch (err) {
-          console.log('Modern clipboard API failed:', err);
-        }
-      }
-
-      // Method 2: Try execCommand
-      console.log('Trying execCommand...');
-      if (unsecuredCopyToClipboard(formattedData)) {
+      if (success) {
         alert('Datos del incendio copiados al portapapeles');
-        return;
+      } else {
+        // Show manual copy modal as fallback
+        console.log('All automatic methods failed, showing manual copy modal');
+        showCopyModal(formattedData);
       }
-
-      // Method 3: Show manual copy modal
-      console.log('All automatic methods failed, showing manual copy modal');
-      showCopyModal(formattedData);
+      
     } catch (error) {
       console.error('Error copying to clipboard:', error);
       alert('Error al copiar los datos al portapapeles');
     }
-  }, [incendioData]);
+  }, [incendioData, copyToClipboard]);
 
   // Layer loading functions (same as MapComponent)
   const loadLayerData = useCallback(async (layerId: string) => {
