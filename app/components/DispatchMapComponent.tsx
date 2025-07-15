@@ -1449,31 +1449,6 @@ Generado: ${new Date().toLocaleString()}
 
 
 
-      {/* Debug Panel */}
-      {/* c8 ignore start */}
-      <div className="absolute top-4 right-80 z-50 bg-black/90 text-white p-3 rounded shadow-lg text-xs max-w-md">
-        <div className="font-bold mb-2">Debug Info:</div>
-        <div><strong>incidentDeclared:</strong> {String(incidentDeclared)}</div>
-        <div><strong>propagationCone:</strong> {propagationCone ? 'Set' : 'Null'}</div>
-        <div><strong>isSubmitting:</strong> {String(isSubmitting)}</div>
-        <div><strong>expandedBrigades:</strong> {String(expandedBrigades)}</div>
-        {incendioData && (
-          <>
-            <div><strong>Brigade Analysis Found:</strong> {String(incendioData.brigade_analysis?.found)}</div>
-            <div><strong>Total Brigades:</strong> {incendioData.brigade_analysis?.total_brigades || 0}</div>
-            <div><strong>Brigades Array Length:</strong> {incendioData.brigade_analysis?.brigades?.length || 0}</div>
-          </>
-        )}
-        {propagationCone && (
-          <div className="mt-2">
-            <div><strong>Cone features:</strong> {propagationCone.features?.length || 0}</div>
-            {propagationCone.features?.[0] && (
-              <div><strong>Coordinates:</strong> {propagationCone.features[0].geometry.coordinates[0].length} points</div>
-            )}
-          </div>
-        )}
-      </div>
-      {/* c8 ignore stop */}
 
       <Map 
         ref={mapRef} 
