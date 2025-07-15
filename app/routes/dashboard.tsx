@@ -10,7 +10,7 @@ import LogoutButton from "~/components/auth/logout-button";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ModeToggle } from "~/components/mode-toggle";
-import { LoginPage, MapPage, DispatchPage } from "~/constants/routes";
+import { LoginPage, MapPage, DispatchPage, IncendiosPage } from "~/constants/routes";
 import { IUser } from "~/interfaces/user";
 import { commitSession, getSession } from "~/sessions.server";
 import { isUserLoggedIn } from "~/auth/utils";
@@ -64,7 +64,7 @@ const Dashboard = () => {
       description: 'Visualiza y gestiona incidentes activos',
       icon: <Flame className="h-8 w-8 text-red-200 dark:text-red-300" />,
       color: 'from-red-500 to-pink-600',
-      implemented: false
+      implemented: true
     }
   ];
 
@@ -73,6 +73,8 @@ const Dashboard = () => {
       navigate(MapPage);
     } else if (optionId === 'dispatch') {
       navigate(DispatchPage);
+    } else if (optionId === 'incidents') {
+      navigate(IncendiosPage);
     } else {
       // For non-implemented features, just show a placeholder
       setCurrentView(optionId as any);
