@@ -53,9 +53,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 10,
     };
 
+    const session = await getSession(request.headers.get("Cookie"));
+    const accessToken = session.get("accessToken");
+
     const [incendiosResponse, statsResponse] = await Promise.all([
-      getIncendios(filters),
-      getIncendiosStats(),
+      getIncendios(filters, accessToken),
+      getIncendiosStats(accessToken),
     ]);
 
     return json({
@@ -96,6 +99,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect(LoginPage);
   }
 
+  const session = await getSession(request.headers.get("Cookie"));
+  const accessToken = session.get("accessToken");
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
 
@@ -115,7 +120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           observaciones: formData.get("observaciones") as string || undefined,
         };
         
-        const newIncendio = await createIncendio(data);
+        const newIncendio = await createIncendio(data, accessToken);
         return json({ success: true, incendio: newIncendio, message: "Incendio creado exitosamente" });
       }
 
@@ -128,7 +133,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           prioridad: formData.get("prioridad") as 'baja' | 'media' | 'alta' | 'critica',
         };
         
-        const result = await declareIncendio(data);
+        const result = await declareIncendio(data, accessToken);
         return json({ 
           success: true, 
           incendio: result.incendio, 
@@ -153,7 +158,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           observaciones: formData.get("observaciones") as string || undefined,
         };
         
-        const updatedIncendio = await updateIncendio(id, data);
+        const updatedIncendio = await updateIncendio(id, data, accessToken);
         return json({ success: true, incendio: updatedIncendio, message: "Incendio actualizado exitosamente" });
       }
 
@@ -161,7 +166,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const id = parseInt(formData.get("id") as string);
         const estado = formData.get("estado") as 'activo' | 'controlado' | 'extinguido' | 'cancelado';
         
-        const updatedIncendio = await updateIncendioStatus(id, estado);
+        const updatedIncendio = await updateIncendioStatus(id, estado, accessToken);
         return json({ success: true, incendio: updatedIncendio, message: "Estado actualizado exitosamente" });
       }
 
@@ -169,14 +174,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const id = parseInt(formData.get("id") as string);
         const prioridad = formData.get("prioridad") as 'baja' | 'media' | 'alta' | 'critica';
         
-        const updatedIncendio = await updateIncendioPriority(id, prioridad);
+        const updatedIncendio = await updateIncendioPriority(id, prioridad, accessToken);
         return json({ success: true, incendio: updatedIncendio, message: "Prioridad actualizada exitosamente" });
       }
 
       case "delete": {
         const id = parseInt(formData.get("id") as string);
         
-        await deleteIncendio(id);
+        await deleteIncendio(id, accessToken);
         return json({ success: true, message: "Incendio eliminado exitosamente" });
       }
 
@@ -184,7 +189,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const ids = JSON.parse(formData.get("ids") as string) as number[];
         const estado = formData.get("estado") as 'activo' | 'controlado' | 'extinguido' | 'cancelado';
         
-        const result = await bulkUpdateIncendiosStatus(ids, estado);
+        const result = await bulkUpdateIncendiosStatus(ids, estado, accessToken);
         return json({ 
           success: true, 
           updated_count: result.updated_count,
@@ -201,7 +206,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           search: formData.get("search") as string || undefined,
         };
         
-        const csvBlob = await exportIncendiosCSV(filters);
+        const csvBlob = await exportIncendiosCSV(filters, accessToken);
         return new Response(csvBlob, {
           headers: {
             "Content-Type": "text/csv",
